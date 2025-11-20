@@ -1,0 +1,41 @@
+T1 - LDAP (gestion users)
+niveau de droits des admins en fonction de leur région
+backup sur paris
+génération du login
+hashage password
+storage backend : list, dict, CSV, SQlite
+système de log (afficher ce que fait le programme)
+menu textuel
+pour tous les admins modification, ajout, suppression, affichage de user
+superadmin capable de crée des admins (max 1 par régions)
+chaque user doit avoir plusieurs attributs (nom, prenom, email, ...)
+gestion d'erreur
+authentification :
+superadmin crée en dur
+superadmin se connecte par login password
+password stockés hashés
+3 tentatives maximum + timeout (30 minutes)
+
+---
+T2 - Gestion des fichiers
+utilisé par tout le monde localement
+
+T3 - FTP
+Gestion des fichiers en remote depuis Paris
+T3 réseau
+uniquement pr le superadmin
+scan réseau
+scan de ports
+plage de ports
+DNS et reverse DNS
+utilisation de threads
+maquette
+paris
+superadmin
+
+Marseille
+admin Marseille
+Rennes
+admin Rennes
+Grenoble
+admin Grenoble
