@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explorateur du Système Solaire</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0e1117;
+            --card-bg: #262730;
+            --text-color: #fafafa;
+            --accent: #ff4b4b;
+            --secondary-text: #a3a8b8;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        h1 { margin-top: 0; font-size: 1.8rem; }
+        h2 { font-size: 1.2rem; color: var(--secondary-text); margin-bottom: 10px; }
+
+        /* Layout Grid */
+        .container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            height: 100%;
+        }
+
+        /* Sidebar Style */
+        .sidebar {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            background: #0e1117;
+            color: white;
+            border: 1px solid #444;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        .planet-img {
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            object-fit: cover;
+        }
+
+        .metric-box {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+
+        .metric {
+            text-align: center;
+        }
+        .metric-val { font-size: 1.2rem; font-weight: bold; color: var(--accent); }
+        .metric-label { font-size: 0.8rem; color: var(--secondary-text); }
+
+        /* Main Content Style */
+        .main-content {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #444;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--secondary-text);
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 1rem;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab-btn.active {
+            color: white;
+            border-bottom: 2px solid var(--accent);
+        }
+
+        .chart-container {
+            flex-grow: 1;
+            min-height: 400px;
+        }
+        
+        .hidden { display: none; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; }
+            body { height: auto; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🪐 Explorateur Interactif du Système Solaire</h1>
+
+    <div class="container">
+        <div class="sidebar">
+            <div>
+                <h2>🔍 Sélection</h2>
+                <select id="planetSelector"></select>
+            </div>
+
+            <div id="planetInfo">
+                <img id="p-img" class="planet-img" src="" alt="">
+                <h2 id="p-name" style="color: white; font-size: 1.5rem;"></h2>
+                <p id="p-type" style="color: var(--accent); font-size: 0.9rem;"></p>
+                <p id="p-desc" style="font-size: 0.9rem; line-height: 1.4;"></p>
+                <p style="font-size: 0.9rem;"><strong>Composition :</strong> <span id="p-comp"></span></p>
+                
+                <div class="metric-box">
+                    <div class="metric">
+                        <div class="metric-label">Diamètre</div>
+                        <div class="metric-val" id="p-diam"></div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Gravité</div>
+                        <div class="metric-val" id="p-grav"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('dist')">Distance au Soleil</button>
+                <button class="tab-btn" onclick="switchTab('size')">Comparaison des Tailles</button>
+            </div>
+
+            <div id="chart-dist" class="chart-container"></div>
+            <div id="chart-size" class="chart-container hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. Les Données ---
+        const solarSystemData = [
+            {
+                name: "Soleil", type: "Étoile", diameter: 1392700, distance: 0, gravity: 274.0, color: "#FDB813",
+                desc: "L'étoile centrale de notre système. Elle représente 99,86 % de la masse totale.",
+                comp: "73% Hydrogène, 25% Hélium",
+                img: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/The_Sun_by_the_Atmospheric_Imaging_Assembly_of_NASA%27s_Solar_Dynamics_Observatory_-_20100819.jpg/800px-The_Sun_by_the_Atmospheric_Imaging_Assembly_of_NASA%27s_Solar_Dynamics_Observatory_-_20100819.jpg"
+            },
+            {
+                name: "Mercure", type: "Planète Tellurique", diameter: 4879, distance: 57.9, gravity: 3.7, color: "#A5A5A5",
+                desc: "La plus petite planète et la plus proche du Soleil. Pas d'atmosphère significative.",
+                comp: "70% Métallique, 30% Silicate",
+                img: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Mercury_in_true_color.jpg/600px-Mercury_in_true_color.jpg"
+            },
+            {
+                name: "Vénus", type: "Planète Tellurique", diameter: 12104, distance: 108.2, gravity: 8.87, color: "#E3BB76",
+                desc: "La planète la plus chaude (effet de serre). Tourne dans le sens opposé des autres.",
+                comp: "96.5% CO2, 3.5% Azote",
+                img: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Venus-real_color.jpg/600px-Venus-real_color.jpg"
+            },
+            {
+                name: "Terre", type: "Planète Tellurique", diameter: 12742, distance: 149.6, gravity: 9.8, color: "#22A6B3",
+                desc: "Seule planète connue abritant la vie. Eau liquide présente en surface.",
+                comp: "32% Fer, 30% Oxygène, 15% Silicium",
+                img: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/The_Earth_seen_from_Apollo_17.jpg/600px-The_Earth_seen_from_Apollo_17.jpg"
+            },
+            {
+                name: "Mars", type: "Planète Tellurique", diameter: 6779, distance: 227.9, gravity: 3.71, color: "#E06F46",
+                desc: "La planète rouge. Possède le plus grand volcan du système solaire (Olympus Mons).",
+                comp: "Oxydes de fer (poussière), Basalte",
+                img: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/OSIRIS_Mars_true_color.jpg/600px-OSIRIS_Mars_true_color.jpg"
+            },
+            {
+                name: "Jupiter", type: "Géante Gazeuse", diameter: 139820, distance: 778.6, gravity: 24.79, color: "#D8CA9D",
+                desc: "La plus grande planète. Sa 'Grande Tache Rouge' est une tempête géante.",
+                comp: "90% Hydrogène, 10% Hélium",
+                img: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2b/Jupiter_and_its_shrunken_Great_Red_Spot.jpg/600px-Jupiter_and_its_shrunken_Great_Red_Spot.jpg"
+            },
+            {
+                name: "Saturne", type: "Géante Gazeuse", diameter: 116460, distance: 1433.5, gravity: 10.44, color: "#BFB580",
+                desc: "Célèbre pour ses anneaux spectaculaires composés de glace et de roche.",
+                comp: "96% Hydrogène, 3% Hélium",
+                img: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/Saturn_during_Equinox.jpg/800px-Saturn_during_Equinox.jpg"
+            }
+        ];
+
+        // --- 2. Initialisation UI ---
+        const selector = document.getElementById('planetSelector');
+        
+        // Remplir le dropdown
+        solarSystemData.forEach((planet, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.text = planet.name;
+            selector.appendChild(option);
+        });
+
+        // Écouteur de changement
+        selector.addEventListener('change', (e) => {
+            updateInfo(e.target.value);
+        });
+
+        // --- 3. Fonctions de Mise à Jour ---
+        function updateInfo(index) {
+            const p = solarSystemData[index];
+            
+            document.getElementById('p-img').src = p.img;
+            document.getElementById('p-name').innerText = p.name;
+            document.getElementById('p-type').innerText = p.type;
+            document.getElementById('p-desc').innerText = p.desc;
+            document.getElementById('p-comp').innerText = p.comp;
+            document.getElementById('p-diam').innerText = p.diameter.toLocaleString() + " km";
+            document.getElementById('p-grav').innerText = p.gravity + " m/s²";
+        }
+
+        // --- 4. Graphiques Plotly ---
+        function initCharts() {
+            // Config commune pour le thème sombre
+            const layoutDefaults = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#fafafa' },
+                margin: { t: 30, l: 40, r: 20, b: 40 },
+                xaxis: { showgrid: false, color: '#666' },
+                yaxis: { showgrid: true, gridcolor: '#333', color: '#666' }
+            };
+
+            // Graphique Distance (Scatter)
+            const traceDist = {
+                x: solarSystemData.map(p => p.distance),
+                y: Array(solarSystemData.length).fill(0),
+                mode: 'markers+text',
+                text: solarSystemData.map(p => p.name),
+                textposition: 'top center',
+                marker: {
+                    size: solarSystemData.map(p => Math.max(10, Math.log(p.diameter)*3)), // Log scale pour visibilité
+                    color: solarSystemData.map(p => p.color)
+                },
+                type: 'scatter'
+            };
+            
+            const layoutDist = { ...layoutDefaults, 
+                title: 'Position relative au Soleil (Millions de km)',
+                yaxis: { showticklabels: false, showgrid: false, range: [-1, 1] }
+            };
+
+            Plotly.newPlot('chart-dist', [traceDist], layoutDist, {responsive: true});
+
+            // Graphique Taille (Bar)
+            const traceSize = {
+                x: solarSystemData.map(p => p.name),
+                y: solarSystemData.map(p => p.diameter),
+                marker: { color: solarSystemData.map(p => p.color) },
+                type: 'bar'
+            };
+
+            const layoutSize = { ...layoutDefaults, title: 'Diamètre des astres (km)' };
+            Plotly.newPlot('chart-size', [traceSize], layoutSize, {responsive: true});
+        }
+
+        // --- 5. Gestion des Onglets ---
+        function switchTab(tabName) {
+            // Gestion classes boutons
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Gestion visibilité divs
+            document.getElementById('chart-dist').classList.add('hidden');
+            document.getElementById('chart-size').classList.add('hidden');
+            
+            document.getElementById(`chart-${tabName}`).classList.remove('hidden');
+            
+            // Force le redimensionnement Plotly car il n'aime pas être caché
+            window.dispatchEvent(new Event('resize'));
+        }
+
+        // Lancement au démarrage
+        updateInfo(0); // Affiche le Soleil par défaut
+        initCharts();
+
+    </script>
+</body>
+</html>
