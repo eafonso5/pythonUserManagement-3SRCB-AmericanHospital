@@ -13,7 +13,7 @@ def afficher_menu_admin(user_connecte):
     print("3. Rechercher un utilisateur")
     print("4. Modifier un utilisateur")
     print("5. Supprimer un utilisateur")
-    print("6. Consuler mon profil")
+    print("6. Consulter mon profil")
     print("7. Changer mon mot de passe")
     print("8. Quitter")
     print("\n" + "=" * 60) 
@@ -134,5 +134,5 @@ def menu_principal(db, user_connecte):
         menu_administrateur(db, user_connecte)
     if est_patient(user_connecte):
         menu_patient(db, user_connecte)
-    else:
+    if not est_admin and not est_patient:
         menu_utilisateur(db, user_connecte)
