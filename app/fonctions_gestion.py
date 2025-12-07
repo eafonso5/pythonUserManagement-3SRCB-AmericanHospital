@@ -7,7 +7,8 @@ ROLES_DISPONIBLES = [
     "Medecin",
     "Infirmier",
     "Pharmacien",
-    "Secretaire"
+    "Secretaire",
+    "Patient"
 ]
 
 
@@ -15,6 +16,9 @@ def est_admin(user):
     """Vérifie si l'utilisateur a un rôle d'administrateur"""
     return "Admin" in user.Role
 
+def est_patient(user):
+    """Vérifie si l'utilisateur a un rôle de patient"""
+    return "Patient" in user.Role
 
 def creer_utilisateur(db):
     """Crée un nouvel utilisateur (réservé aux admins)"""
