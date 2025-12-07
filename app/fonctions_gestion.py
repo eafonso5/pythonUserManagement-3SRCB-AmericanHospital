@@ -74,6 +74,12 @@ def creer_utilisateur(db):
         print("\n⚠ IMPORTANT : Notez ce mot de passe, il ne sera plus affiché.")
 
 
+def consulter_profil(user_connecte):
+    """Affiche le profil de l'utilisateur connecté"""
+    print("\n=== MON PROFIL ===")
+    user_connecte.Afficher_User()   
+
+
 def consulter_liste_utilisateurs(db):
     """Affiche la liste de tous les utilisateurs (accessible à tous)"""
     print("\n=== LISTE DES UTILISATEURS ===")
