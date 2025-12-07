@@ -108,9 +108,31 @@ def menu_utilisateur(db, user_connecte):
             print("\nChoix invalide. Veuillez réessayer.")
 
 
+def menu_patient(db, user_connecte): 
+    """Boucle du menu utilisé par les patients"""
+    while True:
+        afficher_menu_patient(user_connecte)
+        choix = input("\nVotre choix : ").strip()
+        
+        if choix == "1":
+            consulter_profil(user_connecte)
+        
+        elif choix == "2":
+            changer_mon_mot_de_passe(db, user_connecte)
+        
+        elif choix == "3":
+            print("Au revoir !")
+            break
+        
+        else:
+            print("\nChoix invalide. Veuillez réessayer.")
+
+
 def menu_principal(db, user_connecte):
     """Redirige vers le bon menu selon le rôle de l'utilisateur"""
     if est_admin(user_connecte):
         menu_administrateur(db, user_connecte)
+    if est_patient(user_connecte):
+        menu_patient(db, user_connecte)
     else:
         menu_utilisateur(db, user_connecte)
