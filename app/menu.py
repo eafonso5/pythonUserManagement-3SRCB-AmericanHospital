@@ -1,4 +1,4 @@
-from fonctions_gestion import (creer_utilisateur, consulter_liste_utilisateurs,rechercher_utilisateur, modifier_utilisateur,supprimer_utilisateur, changer_mon_mot_de_passe,est_admin)
+from fonctions_gestion import (creer_utilisateur, consulter_liste_utilisateurs,rechercher_utilisateur, modifier_utilisateur,supprimer_utilisateur, changer_mon_mot_de_passe,est_admin, est_patient, consulter_profil)
 
 
 def afficher_menu_admin(user_connecte):
@@ -13,9 +13,10 @@ def afficher_menu_admin(user_connecte):
     print("3. Rechercher un utilisateur")
     print("4. Modifier un utilisateur")
     print("5. Supprimer un utilisateur")
-    print("6. Changer mon mot de passe")
-    print("7. Quitter")
-    print("\n" + "=" * 60)
+    print("6. Consuler mon profil")
+    print("7. Changer mon mot de passe")
+    print("8. Quitter")
+    print("\n" + "=" * 60) 
 
 
 def afficher_menu_user(user_connecte):
@@ -27,8 +28,22 @@ def afficher_menu_user(user_connecte):
     print("=" * 60)
     print("\n1. Consulter la liste des utilisateurs")
     print("2. Rechercher un utilisateur")
-    print("3. Changer mon mot de passe")
-    print("4. Quitter")
+    print("3. Consulter mon profil")
+    print("4. Changer mon mot de passe")
+    print("5. Quitter")
+    print("\n" + "=" * 60)
+    
+
+def afficher_menu_patient(user_connecte):
+    """Affiche le menu utilisateur standard"""
+    print("\n" + "=" * 60)
+    print(" GESTION DES UTILISATEURS - AMERICAN HOSPITAL")
+    print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
+    print(" Mode : PATIENT")
+    print("=" * 60)
+    print("\n1. Consulter mon profil")
+    print("2. Changer mon mot de passe")
+    print("3. Quitter")
     print("\n" + "=" * 60)
 
 
@@ -54,9 +69,12 @@ def menu_administrateur(db, user_connecte):
             supprimer_utilisateur(db)
         
         elif choix == "6":
-            changer_mon_mot_de_passe(db, user_connecte)
+            consulter_profil(user_connecte)        
         
         elif choix == "7":
+            changer_mon_mot_de_passe(db, user_connecte)
+        
+        elif choix == "8":
             print("Au revoir !")
             break
         
@@ -77,9 +95,12 @@ def menu_utilisateur(db, user_connecte):
             rechercher_utilisateur(db)
         
         elif choix == "3":
-            changer_mon_mot_de_passe(db, user_connecte)
+            consulter_profil(user_connecte)
         
         elif choix == "4":
+            changer_mon_mot_de_passe(db, user_connecte)
+        
+        elif choix == "5":
             print("Au revoir !")
             break
         
