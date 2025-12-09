@@ -21,7 +21,7 @@ def est_superadmin(user):
 
 def est_admin(user):
     """Vérifie si l'utilisateur a un rôle d'administrateur"""
-    return user.Role == "Admin"
+    return user.Role == "Super Admin" or "Admin"
 
 def creer_utilisateur(db):
     """Crée un nouvel utilisateur (réservé aux admins)"""
