@@ -1,4 +1,4 @@
-from fonctions_gestion import (creer_utilisateur, consulter_liste_utilisateurs,rechercher_utilisateur, modifier_utilisateur,supprimer_utilisateur, changer_mon_mot_de_passe,est_admin, est_patient, consulter_profil)
+from fonctions_gestion import (creer_utilisateur, consulter_liste_utilisateurs,rechercher_utilisateur, modifier_utilisateur,supprimer_utilisateur, changer_mon_mot_de_passe,est_admin, consulter_profil)
 
 
 def afficher_menu_admin(user_connecte):
@@ -82,33 +82,7 @@ def menu_administrateur(db, user_connecte):
             print("\nChoix invalide. Veuillez réessayer.")
 
 
-def menu_utilisateur(db, user_connecte):
-    """Boucle du menu utilisateur standard"""
-    while True:
-        afficher_menu_user(user_connecte)
-        choix = input("\nVotre choix : ").strip()
-        
-        if choix == "1":
-            consulter_liste_utilisateurs(db)
-        
-        elif choix == "2":
-            rechercher_utilisateur(db)
-        
-        elif choix == "3":
-            consulter_profil(user_connecte)
-        
-        elif choix == "4":
-            changer_mon_mot_de_passe(db, user_connecte)
-        
-        elif choix == "5":
-            print("Au revoir !")
-            break
-        
-        else:
-            print("\nChoix invalide. Veuillez réessayer.")
-
-
-def menu_patient(db, user_connecte): 
+def menu_utilisateur(db, user_connecte): 
     """Boucle du menu utilisé par les patients"""
     while True:
         afficher_menu_patient(user_connecte)
@@ -132,7 +106,5 @@ def menu_principal(db, user_connecte):
     """Redirige vers le bon menu selon le rôle de l'utilisateur"""
     if est_admin(user_connecte):
         menu_administrateur(db, user_connecte)
-    if est_patient(user_connecte):
-        menu_patient(db, user_connecte)
-    if not est_admin and not est_patient:
+    else:
         menu_utilisateur(db, user_connecte)

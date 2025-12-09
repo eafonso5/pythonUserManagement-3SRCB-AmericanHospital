@@ -25,6 +25,7 @@ class DatabaseManager:
                 login TEXT UNIQUE NOT NULL,
                 nom TEXT NOT NULL,
                 prenom TEXT NOT NULL,
+                ville TEXT NOT NULL,
                 role TEXT NOT NULL,
                 password_hash TEXT NOT NULL
             )
@@ -52,7 +53,7 @@ class DatabaseManager:
             print("\nCréation du compte Super Admin par défaut...")
             
             # Créer l'utilisateur Super Admin
-            super_admin = User("Admin", "Super", "Super Admin")
+            super_admin = User(nom="Admin", prenom="Super", ville="Paris", role="Super Admin")
             super_admin.Login = "superadmin"
             
             # Définir le mot de passe "admin"
@@ -74,9 +75,9 @@ class DatabaseManager:
             curseur = connexion.cursor()
             
             curseur.execute("""
-                INSERT INTO utilisateurs (login, nom, prenom, role, password_hash)
-                VALUES (?, ?, ?, ?, ?)
-            """, (user.Login, user.Nom, user.Prenom, user.Role, user.Password_Hash))
+                INSERT INTO utilisateurs (login, nom, prenom, ville, role, password_hash)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (user.Login, user.Nom, user.Prenom, user.Ville, user.Role, user.Password_Hash))
             
             connexion.commit()
             connexion.close()
@@ -95,7 +96,7 @@ class DatabaseManager:
         curseur = connexion.cursor()
         
         curseur.execute("""
-            SELECT login, nom, prenom, role, password_hash
+            SELECT login, nom, prenom, ville, role, password_hash
             FROM utilisateurs
             WHERE login = ?
         """, (login,))
@@ -108,10 +109,10 @@ class DatabaseManager:
             user = User(
                 nom=resultat[1],
                 prenom=resultat[2],
-                role=resultat[3],
+                ville=resultat[3],
+                role=resultat[4],
                 login=resultat[0],
-                password_hash=resultat[4],
-                afficher_creation=False
+                password_hash=resultat[5]
             )
             return user
         
@@ -123,7 +124,7 @@ class DatabaseManager:
         curseur = connexion.cursor()
         
         curseur.execute("""
-            SELECT login, nom, prenom, role, password_hash
+            SELECT login, nom, prenom, ville, role
             FROM utilisateurs
             ORDER BY login
         """)
@@ -136,17 +137,16 @@ class DatabaseManager:
             user = User(
                 nom=row[1],
                 prenom=row[2],
-                role=row[3],
-                login=row[0],
-                password_hash=row[4],
-                afficher_creation=False
+                ville=row[3],
+                role=row[4],
+                login=row[0]
             )
             liste_users.append(user)
         
         return liste_users
     
     def modifier_utilisateur(self, login, nouveau_nom=None, nouveau_prenom=None, 
-                            nouveau_role=None, nouveau_hash=None):
+                            nouvelle_ville=None, nouveau_role=None, nouveau_hash=None):
         """Modifie les informations d'un utilisateur"""
         connexion = self.get_connexion()
         curseur = connexion.cursor()
@@ -162,6 +162,10 @@ class DatabaseManager:
         if nouveau_prenom:
             champs_a_modifier.append("prenom = ?")
             valeurs.append(nouveau_prenom)
+
+        if nouvelle_ville:
+            champs_a_modifier.append("ville = ?")
+            valeurs.append(nouvelle_ville)
         
         if nouveau_role:
             champs_a_modifier.append("role = ?")
