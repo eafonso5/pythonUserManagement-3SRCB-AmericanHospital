@@ -3,22 +3,25 @@ from classes import User
 # Rôles disponibles dans le système
 ROLES_DISPONIBLES = [
     "Super Admin",
-    "Admin Regional",
-    "Medecin",
-    "Infirmier",
-    "Pharmacien",
-    "Secretaire",
-    "Patient"
+    "Admin",
+    "User"
+]
+
+VILLES_DISPONIBLES = [
+    "Paris",
+    "Marseille",
+    "Rennes",
+    "Grenoble"
 ]
 
 
+def est_superadmin(user):
+    """Vérifie si l'utilisateur a un rôle d'administrateur"""
+    return user.Role == "Super Admin"
+
 def est_admin(user):
     """Vérifie si l'utilisateur a un rôle d'administrateur"""
-    return "Admin" in user.Role
-
-def est_patient(user):
-    """Vérifie si l'utilisateur a un rôle de patient"""
-    return "Patient" in user.Role
+    return user.Role == "Admin"
 
 def creer_utilisateur(db):
     """Crée un nouvel utilisateur (réservé aux admins)"""
