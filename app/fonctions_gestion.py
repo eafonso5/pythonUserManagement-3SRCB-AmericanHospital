@@ -29,7 +29,7 @@ def est_admin(user):
     """Vérifie si l'utilisateur a un rôle d'administrateur"""
     return user.Role == "Super Admin" or "Admin"
 
-def creer_utilisateur(db):
+def creer_utilisateur(db,user_connecte):
     """Crée un nouvel utilisateur (réservé aux admins)"""
     print("\n=== CRÉATION D'UN NOUVEL UTILISATEUR ===")
     
@@ -46,11 +46,11 @@ def creer_utilisateur(db):
     
     # Listing des rôles
     print("\nRôles disponibles :")
-    if est_superadmin(db.user_connecte):
+    if est_superadmin(user_connecte):
         roles_a_afficher = ROLES_DISPONIBLES[:2]  # Super Admins auront tous les rôles d'affichés, sauf Super Admin
         for i, role in enumerate(roles_a_afficher, 1):
             print(f"{i}. {role}")
-    elif est_admin(db.user_connecte):
+    elif est_admin(user_connecte):
         roles_a_afficher = ROLES_DISPONIBLES[:1]  # Admins auront seulement "Utilisateur" d'affiché
         for i, role in enumerate(roles_a_afficher, 1):
             print(f"{i}. {role}")
@@ -62,9 +62,9 @@ def creer_utilisateur(db):
     choix_role = input("\nChoisissez un rôle (numéro) : ").strip() 
     try:
         index_role = int(choix_role) - 1
-        if est_superadmin(db.user_connecte) and 0 <= index_role < len(ROLES_DISPONIBLES)-1: # Super Admins peuvent choisir tous les rôles sauf Super Admin (Valeur 1 et 2 en input | 0 et 1 en index)
+        if est_superadmin(user_connecte) and 0 <= index_role < len(ROLES_DISPONIBLES)-1: # Super Admins peuvent choisir tous les rôles sauf Super Admin (Valeur 1 et 2 en input | 0 et 1 en index)
             role = ROLES_DISPONIBLES[index_role]
-        elif est_admin(db.user_connecte) and index_role == 0: # Admins ne peuvent choisir que "Utilisateur" (Valeur 1 en input et 0 en index)
+        elif est_admin(user_connecte) and index_role == 0: # Admins ne peuvent choisir que "Utilisateur" (Valeur 1 en input et 0 en index)
             role = ROLES_DISPONIBLES[0] 
         elif index_role < 0 or (not est_entier(choix_role)): # Si le choix est négatif ou pas un entier, renvoie une erreur
             print("Erreur : Numéro de rôle invalide.")
@@ -95,7 +95,7 @@ def creer_utilisateur(db):
         return
 
     # Créer l'objet User
-    user = User(nom, prenom, role)
+    user = User(nom, prenom, ville, role)
     
     # Vérifier si le login existe déjà
     user_existe = db.rechercher_par_login(user.Login)

@@ -54,7 +54,7 @@ def menu_administrateur(db, user_connecte):
         choix = input("\nVotre choix : ").strip()
         
         if choix == "1":
-            creer_utilisateur(db)
+            creer_utilisateur(db, user_connecte)
         
         elif choix == "2":
             consulter_liste_utilisateurs(db)
