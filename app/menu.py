@@ -24,21 +24,6 @@ def afficher_menu_user(user_connecte):
     print("\n" + "=" * 60)
     print(" GESTION DES UTILISATEURS - AMERICAN HOSPITAL")
     print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
-    print(" Mode : UTILISATEUR")
-    print("=" * 60)
-    print("\n1. Consulter la liste des utilisateurs")
-    print("2. Rechercher un utilisateur")
-    print("3. Consulter mon profil")
-    print("4. Changer mon mot de passe")
-    print("5. Quitter")
-    print("\n" + "=" * 60)
-    
-
-def afficher_menu_patient(user_connecte):
-    """Affiche le menu utilisateur standard"""
-    print("\n" + "=" * 60)
-    print(" GESTION DES UTILISATEURS - AMERICAN HOSPITAL")
-    print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
     print(" Mode : PATIENT")
     print("=" * 60)
     print("\n1. Consulter mon profil")
@@ -85,7 +70,7 @@ def menu_administrateur(db, user_connecte):
 def menu_utilisateur(db, user_connecte): 
     """Boucle du menu utilisé par les patients"""
     while True:
-        afficher_menu_patient(user_connecte)
+        afficher_menu_user(user_connecte)
         choix = input("\nVotre choix : ").strip()
         
         if choix == "1":
