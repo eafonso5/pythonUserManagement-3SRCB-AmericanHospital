@@ -2,9 +2,9 @@ from classes import User
 
 # Rôles disponibles dans le système
 ROLES_DISPONIBLES = [
-    "Super Admin",
+    "User",
     "Admin",
-    "User"
+    "Super Admin"
 ]
 
 VILLES_DISPONIBLES = [
@@ -14,7 +14,13 @@ VILLES_DISPONIBLES = [
     "Grenoble"
 ]
 
-
+def est_entier(valeur): # Vérifie si une valeur est un entier
+    try:
+        int(valeur)
+        return True
+    except ValueError:
+        return False
+    
 def est_superadmin(user):
     """Vérifie si l'utilisateur a un rôle d'administrateur"""
     return user.Role == "Super Admin"
@@ -38,23 +44,56 @@ def creer_utilisateur(db):
         print("Erreur : Le prénom ne peut pas être vide.")
         return
     
-    # Choix du rôle
+    # Listing des rôles
     print("\nRôles disponibles :")
-    for i, role in enumerate(ROLES_DISPONIBLES, 1):
-        print(f"{i}. {role}")
-    
-    choix_role = input("\nChoisissez un rôle (numéro) : ").strip()
+    if est_superadmin(db.user_connecte):
+        roles_a_afficher = ROLES_DISPONIBLES[:2]  # Super Admins auront tous les rôles d'affichés, sauf Super Admin
+        for i, role in enumerate(roles_a_afficher, 1):
+            print(f"{i}. {role}")
+    elif est_admin(db.user_connecte):
+        roles_a_afficher = ROLES_DISPONIBLES[:1]  # Admins auront seulement "Utilisateur" d'affiché
+        for i, role in enumerate(roles_a_afficher, 1):
+            print(f"{i}. {role}")
+    else:   
+        print("Erreur : Vous n'avez pas les permissions pour créer un utilisateur.")
+        return
+
+    # Choix du rôle
+    choix_role = input("\nChoisissez un rôle (numéro) : ").strip() 
     try:
         index_role = int(choix_role) - 1
-        if 0 <= index_role < len(ROLES_DISPONIBLES):
+        if est_superadmin(db.user_connecte) and 0 <= index_role < len(ROLES_DISPONIBLES)-1: # Super Admins peuvent choisir tous les rôles sauf Super Admin (Valeur 1 et 2 en input | 0 et 1 en index)
             role = ROLES_DISPONIBLES[index_role]
-        else:
+        elif est_admin(db.user_connecte) and index_role == 0: # Admins ne peuvent choisir que "Utilisateur" (Valeur 1 en input et 0 en index)
+            role = ROLES_DISPONIBLES[0] 
+        elif index_role < 0 or (not est_entier(choix_role)): # Si le choix est négatif ou pas un entier, renvoie une erreur
             print("Erreur : Numéro de rôle invalide.")
+            return
+        else:  
+            print("Erreur : Vous n'avez pas les permissions pour attribuer ce rôle.")
             return
     except ValueError:
         print("Erreur : Veuillez entrer un numéro valide.")
         return
     
+    # Listing des villes
+    print("\nVilles disponibles :")
+    for i, ville in enumerate(VILLES_DISPONIBLES, 1):
+        print(f"{i}. {ville}")
+    
+    # Choix de la ville
+    choix_ville = input("\nChoisissez une ville (numéro) : ").strip()
+    try:
+        index_ville = int(choix_ville) - 1
+        if 0 <= index_ville < len(VILLES_DISPONIBLES):
+            ville = VILLES_DISPONIBLES[index_ville]
+        else:
+            print("Erreur : Numéro de ville invalide.")
+            return
+    except ValueError:
+        print("Erreur : Veuillez entrer un numéro valide.")
+        return
+
     # Créer l'objet User
     user = User(nom, prenom, role)
     
