@@ -23,11 +23,14 @@ authentification contrôlée.
 
 ### Approche :
 
-- Création d'une classe User et de SubClasses pour normalisation des champs
-- Création / Sécurisation des mots de passes avec un librairie externe (bcrypt)
+- Création d'une classe Salarié et de SubClasse User pour normalisation des champs
+- Création / Sécurisation des mots de passes avec hachage
 - Création et utilisation d'une base de données sqlite
 - Fonctions de consultation, de modification et de recherche des utilisateurs via la BDD
+- SuperAdmin créé par défaut, unique et non supprimable
+- Expiration des mots de passes (DateTime depuis dernière modif + 90j)
+- Tentatives de connexion limitées (blocage utilisateur = DateTime login + 5m)
 - Authentification lors de l'utilisation de fonctions
 
 ### Librairies :
-- sqlalchemy : librairie intégrée pour la gestion BDD
+- sqlite3 : librairie intégrée pour la gestion BDD
