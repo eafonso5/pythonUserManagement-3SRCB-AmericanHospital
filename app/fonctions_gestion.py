@@ -45,38 +45,44 @@ def creer_utilisateur(db,user_connecte):
         print("Erreur : Le prénom ne peut pas être vide.")
         return
     
-    # Listing des rôles
-    print("\nRôles disponibles :")
-    if est_superadmin(user_connecte):
-        roles_a_afficher = ROLES_DISPONIBLES[:2]  # Super Admins auront tous les rôles d'affichés, sauf Super Admin
-        for i, role in enumerate(roles_a_afficher, 1):
-            print(f"{i}. {role}")
-    elif est_admin(user_connecte):
-        roles_a_afficher = ROLES_DISPONIBLES[:1]  # Admins auront seulement "Utilisateur" d'affiché
-        for i, role in enumerate(roles_a_afficher, 1):
-            print(f"{i}. {role}")
-    else:   
+    # Déterminer les rôles attribuables en fonction du rôle du créateur
+    if est_superadmin(user_connecte):      # Super Admin peut créer User et Admin (adapter si tu veux ajouter "Super Admin")
+        roles_attribuables = ROLES_DISPONIBLES[:2]
+    elif est_admin(user_connecte):         # Admin ne peut créer que des Users
+        roles_attribuables = ROLES_DISPONIBLES[:1]
+    else:
         print("Erreur : Vous n'avez pas les permissions pour créer un utilisateur.")
         return
 
-    # Choix du rôle
-    choix_role = input("\nChoisissez un rôle (numéro) : ").strip() 
-    try:
-        index_role = int(choix_role) - 1
-        if est_superadmin(user_connecte) and 0 <= index_role < 2 : # Super Admins peuvent choisir tous les rôles sauf Super Admin (Valeur 1 et 2 en input | 0 et 1 en index)
-            role = ROLES_DISPONIBLES[index_role]
-        elif est_admin(user_connecte) and index_role == 0: # Admins ne peuvent choisir que "Utilisateur" (Valeur 1 en input et 0 en index)
-            role = ROLES_DISPONIBLES[0] 
-        elif index_role < 0 or (not est_entier(choix_role)): # Si le choix est négatif ou pas un entier, renvoie une erreur
-            print("Erreur : Numéro de rôle invalide.")
-            return
-        else:  
-            print("Erreur : Vous n'avez pas les permissions pour attribuer ce rôle.")
-            return
-    except ValueError:
-        print("Erreur : Veuillez entrer un numéro valide.")
-        return
-    
+    # Si un seul rôle possible auto-attribution
+    if len(roles_attribuables) == 1:
+        role = roles_attribuables[0]
+        print("\nRôles disponibles :")
+        print(f"1. {role}")
+        print(f"\nAucun choix nécessaire. Rôle automatiquement attribué : {role}")
+    else:
+    # Sinon, on affiche les rôles 
+        print("\nRôles disponibles :")
+        for i, r in enumerate(roles_attribuables, 1):
+            print(f"{i}. {r}")
+
+    # Saisie et validation du choix
+        while True:
+            choix_role = input("\nChoisissez un rôle (numéro) : ").strip()
+
+            if not est_entier(choix_role):
+                print("Erreur : Veuillez entrer un numéro valide.")
+                continue
+
+            index_role = int(choix_role) - 1
+
+            if 0 <= index_role < len(roles_attribuables):
+                role = roles_attribuables[index_role]
+                break
+            else:
+                print("Erreur : Numéro de rôle invalide.")    
+                
+                
     # Listing des villes
     print("\nVilles disponibles :")
     for i, ville in enumerate(VILLES_DISPONIBLES, 1):
