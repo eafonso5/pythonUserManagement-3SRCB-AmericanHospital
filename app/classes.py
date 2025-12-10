@@ -58,7 +58,7 @@ class Salarie(object):
 class User(Salarie):
     """Classe User qui hérite de Salarié avec login et password"""
     
-    def __init__(self, nom, prenom, ville, role, login=None, password_hash=None):
+    def __init__(self, nom, prenom, ville, role, login=None, password_hash=None, password_expiry=None, account_locked_until=None):
         """Constructeur de la classe User"""
         Salarie.__init__(self, nom, prenom, ville)
         

@@ -1,4 +1,5 @@
 from classes import User
+from datetime import datetime, timedelta
 
 # Rôles disponibles dans le système
 ROLES_DISPONIBLES = [
@@ -62,7 +63,7 @@ def creer_utilisateur(db,user_connecte):
     choix_role = input("\nChoisissez un rôle (numéro) : ").strip() 
     try:
         index_role = int(choix_role) - 1
-        if est_superadmin(user_connecte) and 0 <= index_role < len(ROLES_DISPONIBLES)-1: # Super Admins peuvent choisir tous les rôles sauf Super Admin (Valeur 1 et 2 en input | 0 et 1 en index)
+        if est_superadmin(user_connecte) and 0 <= index_role < 2 : # Super Admins peuvent choisir tous les rôles sauf Super Admin (Valeur 1 et 2 en input | 0 et 1 en index)
             role = ROLES_DISPONIBLES[index_role]
         elif est_admin(user_connecte) and index_role == 0: # Admins ne peuvent choisir que "Utilisateur" (Valeur 1 en input et 0 en index)
             role = ROLES_DISPONIBLES[0] 
@@ -147,22 +148,68 @@ def consulter_liste_utilisateurs(db):
     print("-" * 80)
 
 
+def recherche_generale(self, recherche_recherche):
+    """
+    Recherche des utilisateurs dans TOUTES les colonnes textuelles de la table 'utilisateurs'.
+    Colonnes prises en compte : login, nom, prenom, ville, role.
+    Retourne une liste d'objets User.
+    """
+    connexion = self.get_connexion()
+    curseur = connexion.cursor()
+
+    pattern = f"%{recherche_recherche}%"
+
+    curseur.execute("""
+        SELECT login, nom, prenom, ville, role, password_expiry
+        FROM utilisateurs
+        WHERE login  LIKE ?
+            OR nom    LIKE ?
+            OR prenom LIKE ?
+            OR ville  LIKE ?
+            OR role   LIKE ?
+    """, (pattern, pattern, pattern, pattern, pattern))
+
+    resultats = curseur.fetchall()
+    connexion.close()
+
+    utilisateurs = []
+    for resultat in resultats:
+        user = User(
+            nom=resultat[1],
+            prenom=resultat[2],
+            ville=resultat[3],
+            role=resultat[4],
+            login=resultat[0],
+            password_expiry=resultat[5],
+        )
+        utilisateurs.append(user)
+
+    return utilisateurs
+
 def rechercher_utilisateur(db):
-    """Recherche et affiche un utilisateur (accessible à tous)"""
+    """Recherche et affiche un ou plusieurs utilisateurs (accessible à tous)"""
     print("\n=== RECHERCHE D'UN UTILISATEUR ===")
-    
-    login = input("Entrez le login à rechercher : ").strip()
-    
-    user = db.rechercher_par_login(login)
-    
-    if user:
-        print("\n✓ Utilisateur trouvé :")
+    print("(Recherche sur login, nom, prénom, ville ou rôle)")
+
+    recherche = input("Entrez votre recherche : ").strip()
+
+    if not recherche:
+        print("\n✗ La recherche ne peut pas être vide.")
+        return
+
+    utilisateurs_trouves = db.recherche_generale(recherche)
+
+    if not utilisateurs_trouves:
+        print(f"\n✗ Aucun utilisateur trouvé correspondant à '{recherche}'.")
+        return
+
+    # Affichage de tous les résultats trouvés
+    print(f"\n✓ {len(utilisateurs_trouves)} utilisateur(s) trouvé(s) pour '{recherche}':")
+    for i, user in enumerate(utilisateurs_trouves, start=1):
+        print(f"\n--- Résultat {i} ---")
         user.Afficher_User()
-    else:
-        print(f"\n✗ Aucun utilisateur trouvé avec le login '{login}'.")
 
-
-def modifier_utilisateur(db):
+def modifier_utilisateur(db, user_connecte):
     """Modifie un utilisateur existant (réservé aux admins)"""
     print("\n=== MODIFICATION D'UN UTILISATEUR ===")
     
@@ -262,17 +309,17 @@ def changer_mon_mot_de_passe(db, user_connecte):
     print(f"Utilisateur connecté : {user_connecte.Login}")
     
     # Demander l'ancien mot de passe
-    ancien_pwd = input("\nAncien mot de passe : ").strip()
+    ancien_pwd = input("\nAncien mot de passe : ")
     
     # Demander le nouveau mot de passe
-    nouveau_pwd = input("Nouveau mot de passe (min. 4 caractères) : ").strip()
+    nouveau_pwd = input("Nouveau mot de passe (min. 4 caractères) : ")
     
     if len(nouveau_pwd) < 4:
         print("\n✗ Le mot de passe doit contenir au moins 4 caractères.")
         return False
     
     # Confirmer le nouveau mot de passe
-    confirmation_pwd = input("Confirmez le nouveau mot de passe : ").strip()
+    confirmation_pwd = input("Confirmez le nouveau mot de passe : ")
     
     if nouveau_pwd != confirmation_pwd:
         print("\n✗ Les mots de passe ne correspondent pas.")
@@ -292,23 +339,45 @@ def changer_mon_mot_de_passe(db, user_connecte):
         return False
 
 
+
 def authentifier_utilisateur(db):
     """Authentifie un utilisateur """
     print("\n=== AUTHENTIFICATION ===")
     
-    login = input("Login : ").strip()
-    mot_de_passe = input("Mot de passe : ").strip()
-    
-    user = db.rechercher_par_login(login)
-    
-    if not user:
-        print("\nLogin ou mot de passe incorrect.")
-        return None
-    
-    # Vérifier le mot de passe
-    if user.verifier_mot_de_passe(mot_de_passe):
-        print(f"\nAuthentification réussie. Bienvenue {user.Prenom} {user.Nom} !")
-        return user
-    else:
-        print("\nLogin ou mot de passe incorrect.")
-        return None
+    login_valid = False
+    while not login_valid:
+        login = input("Login : ").strip()
+
+        user = db.rechercher_par_login(login)
+        if not user:
+            print("Login incorrect. Veuillez réessayer.")
+            continue
+
+        if not db.verifier_bloquage_utilisateur(login):
+            print("Compte bloqué. Merci de réessayer plus tard")
+            continue
+
+        else:
+            login_valid = True
+
+    tentatives = 3
+    while tentatives > 0:
+        if tentatives < 3:
+            print(f"\n⚠ Il vous reste {tentatives} tentative(s)")
+        mot_de_passe = input("Mot de passe : ")
+        
+        # Vérifier le mot de passe
+        if user.verifier_mot_de_passe(mot_de_passe):
+            print(f"\nAuthentification réussie. Bienvenue {user.Prenom} {user.Nom} !")
+            return user
+        else:
+            tentatives -= 1
+            if tentatives > 0:
+                print("Login ou mot de passe incorrect. Veuillez réessayer.")
+
+    db.bloquer_utilisateur(login)
+
+    print("\n" + "=" * 60)
+    print(f"ACCÈS REFUSÉ - Nombre maximum de tentatives atteint. Le compte {user.Login} a été bloqué.")
+    print("=" * 60)
+    quit()

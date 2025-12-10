@@ -1,5 +1,6 @@
 import sqlite3
 from classes import User
+from datetime import datetime, timezone
 
 class DatabaseManager:
     """Classe pour gérer la base de données SQLite"""
@@ -27,9 +28,9 @@ class DatabaseManager:
                 prenom TEXT NOT NULL,
                 ville TEXT NOT NULL,
                 role TEXT NOT NULL,
-                password_hash TEXT NOT NULL
-                password_expiry DATE NOT NULL
-                account_locked_until DATE NOT NULL
+                password_hash TEXT NOT NULL,
+                password_expiry DATE NOT NULL,
+                account_locked_until DATE
             )
         """)
         
@@ -55,7 +56,7 @@ class DatabaseManager:
             print("\nCréation du compte Super Admin par défaut...")
             
             # Créer l'utilisateur Super Admin
-            super_admin = User(nom="Admin", prenom="Super", ville="Paris", role="Super Admin")
+            super_admin = User(nom="Admin", prenom="Super", ville="Paris", role="Super Admin", password_expiry="DATE('now' '+ 90 day')" , account_locked_until="DATE('now')")
             super_admin.Login = "superadmin"
             
             # Définir le mot de passe "admin"
@@ -77,10 +78,14 @@ class DatabaseManager:
             curseur = connexion.cursor()
             
             curseur.execute("""
-                INSERT INTO utilisateurs (login, nom, prenom, ville, role, password_hash)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (user.Login, user.Nom, user.Prenom, user.Ville, user.Role, user.Password_Hash))
-            
+                INSERT INTO utilisateurs (
+                    login, nom, prenom, ville, role, password_hash,
+                    password_expiry, account_locked_until
+                )
+                VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+90 day'), datetime('now'))
+            """,
+            (user.Login,user.Nom,user.Prenom,user.Ville,user.Role,user.Password_Hash))
+
             connexion.commit()
             connexion.close()
             return True
@@ -98,7 +103,7 @@ class DatabaseManager:
         curseur = connexion.cursor()
         
         curseur.execute("""
-            SELECT login, nom, prenom, ville, role, password_hash
+            SELECT login, nom, prenom, ville, role, password_hash, password_expiry, account_locked_until
             FROM utilisateurs
             WHERE login = ?
         """, (login,))
@@ -114,7 +119,9 @@ class DatabaseManager:
                 ville=resultat[3],
                 role=resultat[4],
                 login=resultat[0],
-                password_hash=resultat[5]
+                password_hash=resultat[5],
+                password_expiry=resultat[6],
+                account_locked_until=resultat[7]
             )
             return user
         
@@ -148,7 +155,7 @@ class DatabaseManager:
         return liste_users
     
     def modifier_utilisateur(self, login, nouveau_nom=None, nouveau_prenom=None, 
-                            nouvelle_ville=None, nouveau_role=None, nouveau_hash=None):
+                            nouvelle_ville=None, nouveau_role=None, nouveau_hash=None, nouvelle_expiration=None):
         """Modifie les informations d'un utilisateur"""
         connexion = self.get_connexion()
         curseur = connexion.cursor()
@@ -157,25 +164,29 @@ class DatabaseManager:
         champs_a_modifier = []
         valeurs = []
         
-        if nouveau_nom:
+        if nouveau_nom: # Modifier le nom
             champs_a_modifier.append("nom = ?")
             valeurs.append(nouveau_nom)
         
-        if nouveau_prenom:
+        if nouveau_prenom: # Modifier le prénom
             champs_a_modifier.append("prenom = ?")
             valeurs.append(nouveau_prenom)
 
-        if nouvelle_ville:
+        if nouvelle_ville: # Modifier la ville
             champs_a_modifier.append("ville = ?")
             valeurs.append(nouvelle_ville)
         
-        if nouveau_role:
+        if nouveau_role: # Modifier le rôle
             champs_a_modifier.append("role = ?")
             valeurs.append(nouveau_role)
         
-        if nouveau_hash:
+        if nouveau_hash: # Modifier le mot de passe
             champs_a_modifier.append("password_hash = ?")
             valeurs.append(nouveau_hash)
+            
+        if nouvelle_expiration: # Modifier la date d'expiration du mot de passe
+            champs_a_modifier.append("password_expiry = ?")
+            valeurs.append(nouvelle_expiration)
         
         if not champs_a_modifier:
             return False
@@ -203,3 +214,43 @@ class DatabaseManager:
         connexion.close()
         
         return lignes_supprimees > 0
+    
+    def bloquer_utilisateur(self, login):
+        """Bloque la connexion pendant 1 minute."""
+        connexion = self.get_connexion()
+        curseur = connexion.cursor()
+
+        curseur.execute("""
+            UPDATE utilisateurs
+            SET account_locked_until = datetime('now', '+1 minutes')
+            WHERE login = ?
+            """, 
+        (login,)
+        )
+
+        connexion.commit()
+        connexion.close()
+
+    def verifier_bloquage_utilisateur(self,login):
+        """Vérifie si le compte n'est PAS bloqué. True si connexion possible"""
+        connexion = self.get_connexion()
+        curseur = connexion.cursor()
+        
+        curseur.execute("""
+            SELECT account_locked_until
+            FROM utilisateurs
+            WHERE login = ?
+        """, (login,))
+        
+        resultats = curseur.fetchone()
+        connexion.close()
+        
+        if resultats == None:
+            return True
+        
+        verrou_until = datetime.strptime(resultats[0], "%Y-%m-%d %H:%M:%S")
+        verrou_until = verrou_until.replace(tzinfo=timezone.utc)
+
+        valid = verrou_until <= datetime.now(timezone.utc)
+
+        return valid
