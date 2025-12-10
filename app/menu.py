@@ -48,10 +48,10 @@ def menu_administrateur(db, user_connecte):
                 rechercher_utilisateur(db)
         
             case "4":
-                modifier_utilisateur(db)
+                modifier_utilisateur(db,user_connecte)
         
             case "5":
-                supprimer_utilisateur(db)
+                supprimer_utilisateur(db, user_connecte)
         
             case "6":
                 consulter_profil(user_connecte)        

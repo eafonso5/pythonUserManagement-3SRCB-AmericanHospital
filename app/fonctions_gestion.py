@@ -295,7 +295,7 @@ def modifier_utilisateur(db, user_connecte):
                 print("✗ Choix invalide.")
 
 
-def supprimer_utilisateur(db):
+def supprimer_utilisateur(db, user_connecte):
     """Supprime un utilisateur (réservé aux admins)"""
     print("\n=== SUPPRESSION D'UN UTILISATEUR ===")
     
@@ -304,7 +304,7 @@ def supprimer_utilisateur(db):
     user = db.rechercher_par_login(login)
     
     if not user:
-        print(f"\n✗ Utilisateur '{login}' non trouvé.")
+        print(f"\nErreur : Utilisateur '{login}' non trouvé.")
         return
     
     # Confirmation
@@ -312,10 +312,13 @@ def supprimer_utilisateur(db):
     confirmation = input("Êtes-vous sûr de vouloir supprimer cet utilisateur ? (oui/non) : ").strip().lower()
     
     if confirmation == "oui":
+        if user_connecte.Login == login:
+            print("\nErreur : Vous ne pouvez pas supprimer votre propre compte.")
+            return
         if db.supprimer_utilisateur(login):
             print(f"\n✓ Utilisateur '{login}' supprimé avec succès.")
         else:
-            print(f"\n✗ Erreur lors de la suppression.")
+            print(f"\nErreur lors de la suppression.")
     else:
         print("\nSuppression annulée.")
 
