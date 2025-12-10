@@ -148,16 +148,16 @@ def consulter_liste_utilisateurs(db):
     print("-" * 80)
 
 
-def recherche_generale(self, recherche_recherche):
+def recherche_generale(db, recherche):
     """
     Recherche des utilisateurs dans TOUTES les colonnes textuelles de la table 'utilisateurs'.
     Colonnes prises en compte : login, nom, prenom, ville, role.
     Retourne une liste d'objets User.
     """
-    connexion = self.get_connexion()
+    connexion = db.get_connexion()
     curseur = connexion.cursor()
 
-    pattern = f"%{recherche_recherche}%"
+    pattern = f"%{recherche}%"
 
     curseur.execute("""
         SELECT login, nom, prenom, ville, role, password_expiry
@@ -194,20 +194,27 @@ def rechercher_utilisateur(db):
     recherche = input("Entrez votre recherche : ").strip()
 
     if not recherche:
-        print("\nErruer : La recherche ne peut pas être vide.")
+        print("\nErreur : La recherche ne peut pas être vide.")
         return
 
-    utilisateurs_trouves = db.recherche_generale(recherche)
+    utilisateurs_trouves = recherche_generale(db, recherche) # Utilisation de la nouvelle fonction de recherche générale
 
     if not utilisateurs_trouves:
-        print(f"\nErreur : Aucun utilisateur trouvé correspondant à '{recherche}'.")
+        print(f"\nErreur : Aucun utilisateur trouvé correspondant à '{recherche}'.") 
         return
+    
+    print(f"\n {len(utilisateurs_trouves)} utilisateur(s) trouvé(s) pour '{recherche}':") # Affichage du nombre de résultats trouvés
+    
+    if len(utilisateurs_trouves) == 1:
+        utilisateurs_trouves[0].Afficher_User()  # Afficher les détails complets si un seul utilisateur trouvé
+        return
+    
+    print(f"\n{'Login':<12} {'Nom':<12} {'Prénom':<12} {'Ville':<12} {'Rôle'}") # En-têtes des colonnes
+    print("-" * 65)
+    
+    for user in utilisateurs_trouves:
+        print(f"{user.Login:<12} {user.Nom:<12} {user.Prenom:<12} {user.Ville:<12} {user.Role}") # Lignes utilisateurs
 
-    # Affichage de tous les résultats trouvés
-    print(f"\n {len(utilisateurs_trouves)} utilisateur(s) trouvé(s) pour '{recherche}':")
-    for i, user in enumerate(utilisateurs_trouves, start=1):
-        print(f"\n--- Résultat {i} ---")
-        user.Afficher_User()
 
 def modifier_utilisateur(db, user_connecte):
     """Modifie un utilisateur existant (réservé aux admins)"""
@@ -340,6 +347,7 @@ def changer_mon_mot_de_passe(db, user_connecte):
     if ancien_pwd == nouveau_pwd:
         print("\nErreur : Le nouveau mot de passe doit être différent de l'ancien.")
         return False
+    
     if len(nouveau_pwd) < 4:
         print("\nErreur : Le mot de passe doit contenir au moins 4 caractères.")
         return False
