@@ -63,14 +63,14 @@ class User(Salarie):
         Salarie.__init__(self, nom, prenom, ville)
         
         self.Role = role
-        self.Login = login if login else self.generer_login()
+        self.Login = login
         self.Password_Hash = password_hash
     
     def generer_login(self):
         """Génère le login : première lettre du prénom + nom"""
         premiere_lettre = self.Prenom[0].lower()
         nom_complet = self.Nom.replace(" ", "").lower()
-        return premiere_lettre + nom_complet
+        self.Login = premiere_lettre + nom_complet
     
     def generer_mot_de_passe(self):
         """Génère un mot de passe aléatoire"""

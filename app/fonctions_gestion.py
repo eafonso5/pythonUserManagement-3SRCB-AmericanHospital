@@ -27,7 +27,7 @@ def est_superadmin(user):
 
 def est_admin(user):
     """Vérifie si l'utilisateur a un rôle d'administrateur"""
-    return user.Role == "Super Admin" or "Admin"
+    return user.Role == "Super Admin" or user.Role == "Admin"
 
 def creer_utilisateur(db,user_connecte):
     """Crée un nouvel utilisateur (réservé aux admins)"""
@@ -102,6 +102,9 @@ def creer_utilisateur(db,user_connecte):
     if user_existe:
         print(f"Erreur : Un utilisateur avec le login '{user.Login}' existe déjà.")
         return
+    
+    # Générer le login
+    user.generer_login()
     
     # Générer et hacher le mot de passe
     mot_de_passe_clair = user.generer_mot_de_passe()
@@ -181,50 +184,51 @@ def modifier_utilisateur(db):
     
     choix = input("\nVotre choix : ").strip()
     
-    if choix == "1":
-        nouveau_nom = input("Nouveau nom : ").strip()
-        if nouveau_nom:
-            user.set_nom(nouveau_nom)
-            if db.modifier_utilisateur(login, nouveau_nom=nouveau_nom):
-                print("✓ Nom modifié avec succès dans la base de données.")
+    match choix:
+            case "1":
+                nouveau_nom = input("Nouveau nom : ").strip()
+                if nouveau_nom:
+                    user.set_nom(nouveau_nom)
+                    if db.modifier_utilisateur(login, nouveau_nom=nouveau_nom):
+                        print("✓ Nom modifié avec succès dans la base de données.")
     
-    elif choix == "2":
-        nouveau_prenom = input("Nouveau prénom : ").strip()
-        if nouveau_prenom:
-            user.set_prenom(nouveau_prenom)
-            if db.modifier_utilisateur(login, nouveau_prenom=nouveau_prenom):
-                print("✓ Prénom modifié avec succès dans la base de données.")
-    
-    elif choix == "3":
-        print("\nRôles disponibles :")
-        for i, role in enumerate(ROLES_DISPONIBLES, 1):
-            print(f"{i}. {role}")
+            case "2":
+                nouveau_prenom = input("Nouveau prénom : ").strip()
+                if nouveau_prenom:
+                    user.set_prenom(nouveau_prenom)
+                    if db.modifier_utilisateur(login, nouveau_prenom=nouveau_prenom):
+                        print("✓ Prénom modifié avec succès dans la base de données.")
+            
+            case "3":
+                print("\nRôles disponibles :")
+                for i, role in enumerate(ROLES_DISPONIBLES, 1):
+                    print(f"{i}. {role}")
         
-        choix_role = input("\nChoisissez un rôle (numéro) : ").strip()
-        try:
-            index_role = int(choix_role) - 1
-            if 0 <= index_role < len(ROLES_DISPONIBLES):
-                nouveau_role = ROLES_DISPONIBLES[index_role]
-                user.set_role(nouveau_role)
-                if db.modifier_utilisateur(login, nouveau_role=nouveau_role):
-                    print("✓ Rôle modifié avec succès dans la base de données.")
-        except ValueError:
-            print("✗ Veuillez entrer un numéro valide.")
+                choix_role = input("\nChoisissez un rôle (numéro) : ").strip()
+                try:
+                    index_role = int(choix_role) - 1
+                    if 0 <= index_role < len(ROLES_DISPONIBLES):
+                        nouveau_role = ROLES_DISPONIBLES[index_role]
+                        user.set_role(nouveau_role)
+                        if db.modifier_utilisateur(login, nouveau_role=nouveau_role):
+                            print("✓ Rôle modifié avec succès dans la base de données.")
+                except ValueError:
+                    print("✗ Veuillez entrer un numéro valide.")
     
-    elif choix == "4":
-        nouveau_pwd = user.generer_mot_de_passe()
-        user.hacher_mot_de_passe(nouveau_pwd)
-        
-        if db.modifier_utilisateur(login, nouveau_hash=user.Password_Hash):
-            print(f"✓ Mot de passe réinitialisé avec succès.")
-            print(f"Nouveau mot de passe : {nouveau_pwd}")
-            print("⚠ IMPORTANT : Communiquez ce mot de passe à l'utilisateur.")
-    
-    elif choix == "5":
-        print("Modification annulée.")
-    
-    else:
-        print("✗ Choix invalide.")
+            case "4":
+                nouveau_pwd = user.generer_mot_de_passe()
+                user.hacher_mot_de_passe(nouveau_pwd)
+                
+                if db.modifier_utilisateur(login, nouveau_hash=user.Password_Hash):
+                    print(f"✓ Mot de passe réinitialisé avec succès.")
+                    print(f"Nouveau mot de passe : {nouveau_pwd}")
+                    print("⚠ IMPORTANT : Communiquez ce mot de passe à l'utilisateur.")
+            
+            case "5":
+                print("Modification annulée.")
+            
+            case _:
+                print("✗ Choix invalide.")
 
 
 def supprimer_utilisateur(db):

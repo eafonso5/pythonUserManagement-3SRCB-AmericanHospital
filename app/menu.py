@@ -18,13 +18,12 @@ def afficher_menu_admin(user_connecte):
     print("8. Quitter")
     print("\n" + "=" * 60) 
 
-
 def afficher_menu_user(user_connecte):
     """Affiche le menu utilisateur standard"""
     print("\n" + "=" * 60)
     print(" GESTION DES UTILISATEURS - AMERICAN HOSPITAL")
     print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
-    print(" Mode : PATIENT")
+    print(" Mode : USER")
     print("=" * 60)
     print("\n1. Consulter mon profil")
     print("2. Changer mon mot de passe")
@@ -38,33 +37,34 @@ def menu_administrateur(db, user_connecte):
         afficher_menu_admin(user_connecte)
         choix = input("\nVotre choix : ").strip()
         
-        if choix == "1":
-            creer_utilisateur(db, user_connecte)
+        match choix:
+            case "1":
+                creer_utilisateur(db, user_connecte)
         
-        elif choix == "2":
-            consulter_liste_utilisateurs(db)
+            case "2":
+                consulter_liste_utilisateurs(db)
         
-        elif choix == "3":
-            rechercher_utilisateur(db)
+            case "3":
+                rechercher_utilisateur(db)
         
-        elif choix == "4":
-            modifier_utilisateur(db)
+            case "4":
+                modifier_utilisateur(db)
         
-        elif choix == "5":
-            supprimer_utilisateur(db)
+            case "5":
+                supprimer_utilisateur(db)
         
-        elif choix == "6":
-            consulter_profil(user_connecte)        
+            case "6":
+                consulter_profil(user_connecte)        
         
-        elif choix == "7":
-            changer_mon_mot_de_passe(db, user_connecte)
+            case "7":
+                changer_mon_mot_de_passe(db, user_connecte)
         
-        elif choix == "8":
-            print("Au revoir !")
-            break
-        
-        else:
-            print("\nChoix invalide. Veuillez réessayer.")
+            case "8":
+                print("Au revoir !")
+                break
+            
+            case _:
+                print("\nChoix invalide. Veuillez réessayer.")        
 
 
 def menu_utilisateur(db, user_connecte): 
@@ -73,18 +73,19 @@ def menu_utilisateur(db, user_connecte):
         afficher_menu_user(user_connecte)
         choix = input("\nVotre choix : ").strip()
         
-        if choix == "1":
-            consulter_profil(user_connecte)
+        match choix:
+            case "1":
+                consulter_profil(user_connecte)
         
-        elif choix == "2":
-            changer_mon_mot_de_passe(db, user_connecte)
-        
-        elif choix == "3":
-            print("Au revoir !")
-            break
-        
-        else:
-            print("\nChoix invalide. Veuillez réessayer.")
+            case "2":
+                changer_mon_mot_de_passe(db, user_connecte)
+            
+            case "3":
+                print("Au revoir !")
+                break
+            
+            case _:
+                print("\nChoix invalide. Veuillez réessayer.")
 
 
 def menu_principal(db, user_connecte):
