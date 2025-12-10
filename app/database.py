@@ -1,6 +1,6 @@
 import sqlite3
 from classes import User
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 
 class DatabaseManager:
     """Classe pour gérer la base de données SQLite"""
@@ -28,8 +28,8 @@ class DatabaseManager:
                 prenom TEXT NOT NULL,
                 ville TEXT NOT NULL,
                 role TEXT NOT NULL,
-                password_hash TEXT NOT NULL
-                password_expiry DATE NOT NULL
+                password_hash TEXT NOT NULL,
+                password_expiry DATE NOT NULL,
                 account_locked_until DATE
             )
         """)
@@ -78,10 +78,14 @@ class DatabaseManager:
             curseur = connexion.cursor()
             
             curseur.execute("""
-                INSERT INTO utilisateurs (login, nom, prenom, ville, role, password_hash, password_expiry, account_locked_until)
-                VALUES (?, ?, ?, ?, ?, ?, 'now' '+ 90 day', 'now')
-            """, (user.Login, user.Nom, user.Prenom, user.Ville, user.Role, user.Password_Hash))
-            
+                INSERT INTO utilisateurs (
+                    login, nom, prenom, ville, role, password_hash,
+                    password_expiry, account_locked_until
+                )
+                VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+90 day'), datetime('now'))
+            """,
+            (user.Login,user.Nom,user.Prenom,user.Ville,user.Role,user.Password_Hash))
+
             connexion.commit()
             connexion.close()
             return True
@@ -210,3 +214,43 @@ class DatabaseManager:
         connexion.close()
         
         return lignes_supprimees > 0
+    
+    def bloquer_utilisateur(self, login):
+        """Bloque la connexion pendant 1 minute."""
+        connexion = self.get_connexion()
+        curseur = connexion.cursor()
+
+        curseur.execute("""
+            UPDATE utilisateurs
+            SET account_locked_until = datetime('now', '+1 minutes')
+            WHERE login = ?
+            """, 
+        (login,)
+        )
+
+        connexion.commit()
+        connexion.close()
+
+    def verifier_bloquage_utilisateur(self,login):
+        """Vérifie si le compte n'est PAS bloqué. True si connexion possible"""
+        connexion = self.get_connexion()
+        curseur = connexion.cursor()
+        
+        curseur.execute("""
+            SELECT account_locked_until
+            FROM utilisateurs
+            WHERE login = ?
+        """, (login,))
+        
+        resultats = curseur.fetchone()
+        connexion.close()
+        
+        if resultats == None:
+            return True
+        
+        verrou_until = datetime.strptime(resultats[0], "%Y-%m-%d %H:%M:%S")
+        verrou_until = verrou_until.replace(tzinfo=timezone.utc)
+
+        valid = verrou_until <= datetime.now(timezone.utc)
+
+        return valid

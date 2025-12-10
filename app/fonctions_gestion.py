@@ -351,6 +351,12 @@ def authentifier_utilisateur(db):
         user = db.rechercher_par_login(login)
         if not user:
             print("Login incorrect. Veuillez réessayer.")
+            continue
+
+        if not db.verifier_bloquage_utilisateur(login):
+            print("Compte bloqué. Merci de réessayer plus tard")
+            continue
+
         else:
             login_valid = True
 
@@ -369,10 +375,7 @@ def authentifier_utilisateur(db):
             if tentatives > 0:
                 print("Login ou mot de passe incorrect. Veuillez réessayer.")
 
-    connexion = db.get_connexion
-    curseur = connexion.cursor()
-
-    curseur.execute("UPDATE utilisateurs SET account_locked_until = 'now' '+ 90 day' WHERE login = ?", user.Login)
+    db.bloquer_utilisateur(login)
 
     print("\n" + "=" * 60)
     print(f"ACCÈS REFUSÉ - Nombre maximum de tentatives atteint. Le compte {user.Login} a été bloqué.")
