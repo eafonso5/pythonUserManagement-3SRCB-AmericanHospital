@@ -279,7 +279,22 @@ class DatabaseManager:
         
         verrou_until = datetime.strptime(resultats[0], "%Y-%m-%d %H:%M:%S")
         verrou_until = verrou_until.replace(tzinfo=timezone.utc)
-
-        valid = verrou_until <= datetime.now(timezone.utc)
-
-        return valid
+        
+        maintenant = datetime.now(timezone.utc)
+        
+        # Si la date (et l'heure) est passée, le compte n'est plus verrouillé
+        if verrou_until <= maintenant:
+            return True
+        
+        # Calcul du temps restant de verrouillage
+        restant = verrou_until - maintenant
+        secondes = int(restant.total_seconds())
+        
+        heures, reste = divmod(secondes, 3600)
+        minutes, secondes = divmod(reste, 60)
+        
+        # Afficher le temps de verrouillage restant
+        print("\n⚠ Votre compte est actuellement verrouillé.")
+        print(f"Temps restant avant la prochaine tentative : {heures} heures, {minutes} minute(s) et {secondes} seconde(s).")
+        
+        return False
