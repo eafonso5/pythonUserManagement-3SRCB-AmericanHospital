@@ -155,12 +155,12 @@ def consulter_liste_utilisateurs(db):
     
     print(f"\nNombre total d'utilisateurs : {len(liste_users)}\n")
     print("-" * 80)
-    print(f"{'Login':<15} | {'Nom complet':<25} | {'Rôle':<20}")
+    print(f"{'Login':<15} | {'Nom complet':<25} | {'Rôle':<15} | {'Ville' :<15}" )
     print("-" * 80)
     
     for user in liste_users:
         nom_complet = f"{user.Prenom} {user.Nom}"
-        print(f"{user.Login:<15} | {nom_complet:<25} | {user.Role:<20}")
+        print(f"{user.Login:<15} | {nom_complet:<25} | {user.Role:<15} | {user.Ville:<15}")
     
     print("-" * 80)
 
