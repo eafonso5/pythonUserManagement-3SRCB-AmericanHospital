@@ -1,13 +1,14 @@
 from classes import User
 from datetime import datetime, timedelta
 
-# Rôles disponibles dans le système
+# Définition des rôles disponibles dans le système
 ROLES_DISPONIBLES = [
     "User",
     "Admin",
     "Super Admin"
 ]
 
+# Liste des villes disponibles pour l’utilisateur
 VILLES_DISPONIBLES = [
     "Paris",
     "Marseille",
@@ -15,65 +16,76 @@ VILLES_DISPONIBLES = [
     "Grenoble"
 ]
 
-def est_entier(valeur): # Vérifie si une valeur est un entier
+
+def est_entier(valeur):
+    """Vérifie si une chaîne peut être convertie en entier."""
     try:
         int(valeur)
         return True
     except ValueError:
         return False
     
+
 def est_superadmin(user):
-    """Vérifie si l'utilisateur a un rôle d'administrateur"""
+    """Retourne True si l'utilisateur possède le rôle 'Super Admin'."""
     return user.Role == "Super Admin"
 
+
 def est_admin(user):
-    """Vérifie si l'utilisateur a un rôle d'administrateur"""
+    """Retourne True si l'utilisateur est Admin ou Super Admin."""
     return user.Role == "Super Admin" or user.Role == "Admin"
 
-def creer_utilisateur(db,user_connecte):
-    """Crée un nouvel utilisateur (réservé aux admins)"""
+
+def creer_utilisateur(db, user_connecte):
+    """Crée un nouvel utilisateur. Fonction réservée aux administrateurs."""
+
     print("\n=== CRÉATION D'UN NOUVEL UTILISATEUR ===")
     
-    # Saisie des informations
+    # Demande du nom de famille
     nom = input("Nom : ").strip()
     if not nom:
         print("Erreur : Le nom ne peut pas être vide.")
         return
     
+    # Demande du prénom
     prenom = input("Prénom : ").strip()
     if not prenom:
         print("Erreur : Le prénom ne peut pas être vide.")
         return
     
-    # Vérification du NOM + PRÉNOM
+    # Vérification qu'un utilisateur avec le même nom+prénom n'existe pas déjà
     user_deja_present = db.rechercher_par_nom_prenom(nom, prenom)
     if user_deja_present:
         print(f"Erreur : Un utilisateur avec le nom '{nom}' et le prénom '{prenom}' existe déjà ")
         print(f"(Login de l'utilisateur : {user_deja_present.Login}).")
         return
     
-    # Déterminer les rôles attribuables en fonction du rôle du créateur
-    if est_superadmin(user_connecte):      # Super Admin peut créer User et Admin (adapter si tu veux ajouter "Super Admin")
+    # Détermination des rôles pouvant être attribués selon le rôle du créateur
+    if est_superadmin(user_connecte):
+        # Un Super Admin peut créer User + Admin
         roles_attribuables = ROLES_DISPONIBLES[:2]
-    elif est_admin(user_connecte):         # Admin ne peut créer que des Users
+    elif est_admin(user_connecte):
+        # Un Admin ne peut créer que des Users
         roles_attribuables = ROLES_DISPONIBLES[:1]
     else:
+        # Vérification de sécurité supplémentaire
         print("Erreur : Vous n'avez pas les permissions pour créer un utilisateur.")
         return
 
-    # Si un seul rôle possible auto-attribution
+    # Si un seul rôle possible, attribution automatique
     if len(roles_attribuables) == 1:
         role = roles_attribuables[0]
         print("\nRôles disponibles :")
         print(f"1. {role}")
         print(f"\nAucun choix nécessaire. Rôle automatiquement attribué : {role}")
+    
+    # Sinon, affichage et choix manuel du rôle
     else:
-    # Sinon, on affiche les rôles 
         print("\nRôles disponibles :")
         for i, r in enumerate(roles_attribuables, 1):
             print(f"{i}. {r}")
 
-    # Saisie et validation du choix
+        # Boucle pour sécuriser la saisie du rôle
         while True:
             choix_role = input("\nChoisissez un rôle (numéro) : ").strip()
 
@@ -83,22 +95,24 @@ def creer_utilisateur(db,user_connecte):
 
             index_role = int(choix_role) - 1
 
+            # Vérification de l’index sélectionné
             if 0 <= index_role < len(roles_attribuables):
                 role = roles_attribuables[index_role]
                 break
             else:
-                print("Erreur : Numéro de rôle invalide.")    
+                print("Erreur : Numéro de rôle invalide.")
                 
-                
-    # Listing des villes
+    # Affichage des villes disponibles
     print("\nVilles disponibles :")
     for i, ville in enumerate(VILLES_DISPONIBLES, 1):
         print(f"{i}. {ville}")
     
-    # Choix de la ville
+    # Sélection de la ville
     choix_ville = input("\nChoisissez une ville (numéro) : ").strip()
     try:
         index_ville = int(choix_ville) - 1
+
+        # Vérification de la validité de l’indice
         if 0 <= index_ville < len(VILLES_DISPONIBLES):
             ville = VILLES_DISPONIBLES[index_ville]
         else:
@@ -108,27 +122,31 @@ def creer_utilisateur(db,user_connecte):
         print("Erreur : Veuillez entrer un numéro valide.")
         return
 
-    # Créer l'objet User
+    # Création de l’objet User
     user = User(nom, prenom, ville, role)
     
-    # Générer le login de l'utilisateur
+    # Génération du login initial
     user.generer_login()
     login_de_base = user.Login
     
-    # S'assurer que le login est unique
-    nouveau_login = login_de_base # Permet de conserver le login de base si pas de conflit
+    # Vérification que le login n'existe pas déjà
+    nouveau_login = login_de_base
     suffixe = 1
-    while db.rechercher_par_login(nouveau_login) is not None: # Tant qu'un utilisateur avec ce login existe, on ajoute un suffixe incrémental
+
+    # Incrémentation automatique en cas de doublon de login
+    while db.rechercher_par_login(nouveau_login) is not None:
         nouveau_login = f"{login_de_base}{suffixe}"
         suffixe += 1
     
     user.Login = nouveau_login 
     
-    # Générer et hacher le mot de passe
+    # Génération d'un mot de passe temporaire
     mot_de_passe_clair = user.generer_mot_de_passe()
+
+    # Hachage du mot de passe généré
     user.hacher_mot_de_passe(mot_de_passe_clair)
     
-    # Ajouter à la base de données
+    # Sauvegarde du nouvel utilisateur en base
     if db.ajouter_utilisateur(user):
         print("\n✓ Utilisateur créé avec succès !")
         print(f"Login : {user.Login}")
@@ -138,26 +156,29 @@ def creer_utilisateur(db,user_connecte):
 
 
 def consulter_profil(user_connecte):
-    """Affiche le profil de l'utilisateur connecté"""
+    """Affiche les informations du compte de l’utilisateur connecté."""
     print("\n=== MON PROFIL ===")
-    user_connecte.Afficher_User()   
+    user_connecte.Afficher_User()
 
 
 def consulter_liste_utilisateurs(db):
-    """Affiche la liste de tous les utilisateurs (accessible à tous)"""
+    """Affiche la liste complète des utilisateurs stockés en base."""
+
     print("\n=== LISTE DES UTILISATEURS ===")
     
     liste_users = db.lister_tous_utilisateurs()
     
+    # Vérification de la présence d’utilisateurs
     if not liste_users:
         print("Aucun utilisateur enregistré.")
         return
     
     print(f"\nNombre total d'utilisateurs : {len(liste_users)}\n")
     print("-" * 80)
-    print(f"{'Login':<15} | {'Nom complet':<25} | {'Rôle':<15} | {'Ville' :<15}" )
+    print(f"{'Login':<15} | {'Nom complet':<25} | {'Rôle':<15} | {'Ville':<15}")
     print("-" * 80)
     
+    # Affichage formaté des utilisateurs
     for user in liste_users:
         nom_complet = f"{user.Prenom} {user.Nom}"
         print(f"{user.Login:<15} | {nom_complet:<25} | {user.Role:<15} | {user.Ville:<15}")
@@ -167,13 +188,15 @@ def consulter_liste_utilisateurs(db):
 
 def recherche_generale(db, recherche):
     """
-    Recherche des utilisateurs dans TOUTES les colonnes textuelles de la table 'utilisateurs'.
-    Colonnes prises en compte : login, nom, prenom, ville, role.
-    Retourne une liste d'objets User.
+    Effectue une recherche dans plusieurs colonnes :
+    login, nom, prénom, ville, rôle.
+    Retourne une liste d’objets User correspondants.
     """
+
     connexion = db.get_connexion()
     curseur = connexion.cursor()
 
+    # Utilisation d’un LIKE SQL pour rechercher partiellement la valeur
     pattern = f"%{recherche}%"
 
     curseur.execute("""
@@ -190,6 +213,8 @@ def recherche_generale(db, recherche):
     connexion.close()
 
     utilisateurs = []
+
+    # Reconstruction d’un User pour chaque ligne trouvée
     for resultat in resultats:
         user = User(
             nom=resultat[1],
@@ -203,8 +228,10 @@ def recherche_generale(db, recherche):
 
     return utilisateurs
 
+
 def rechercher_utilisateur(db):
-    """Recherche et affiche un ou plusieurs utilisateurs (accessible à tous)"""
+    """Recherche un ou plusieurs utilisateurs selon une valeur textuelle saisie."""
+
     print("\n=== RECHERCHE D'UN UTILISATEUR ===")
     print("(Recherche sur login, nom, prénom, ville ou rôle)")
 
@@ -214,33 +241,40 @@ def rechercher_utilisateur(db):
         print("\nErreur : La recherche ne peut pas être vide.")
         return
 
-    utilisateurs_trouves = recherche_generale(db, recherche) # Utilisation de la nouvelle fonction de recherche générale
+    # Appel de la recherche globale
+    utilisateurs_trouves = recherche_generale(db, recherche)
 
+    # Gestion d’absence de résultat
     if not utilisateurs_trouves:
-        print(f"\nErreur : Aucun utilisateur trouvé correspondant à '{recherche}'.") 
+        print(f"\nErreur : Aucun utilisateur trouvé correspondant à '{recherche}'.")
         return
     
-    print(f"\n {len(utilisateurs_trouves)} utilisateur(s) trouvé(s) pour '{recherche}':") # Affichage du nombre de résultats trouvés
+    print(f"\n {len(utilisateurs_trouves)} utilisateur(s) trouvé(s) pour '{recherche}':")
     
+    # Si un seul utilisateur, on affiche sa fiche complète
     if len(utilisateurs_trouves) == 1:
-        utilisateurs_trouves[0].Afficher_User()  # Afficher les détails complets si un seul utilisateur trouvé
+        utilisateurs_trouves[0].Afficher_User()
         return
     
-    print(f"\n{'Login':<12} {'Nom':<12} {'Prénom':<12} {'Ville':<12} {'Rôle'}") # En-têtes des colonnes
+    # Sinon, tableau récapitulatif
+    print(f"\n{'Login':<12} {'Nom':<12} {'Prénom':<12} {'Ville':<12} {'Rôle'}")
     print("-" * 65)
     
     for user in utilisateurs_trouves:
-        print(f"{user.Login:<12} {user.Nom:<12} {user.Prenom:<12} {user.Ville:<12} {user.Role}") # Lignes utilisateurs
+        print(f"{user.Login:<12} {user.Nom:<12} {user.Prenom:<12} {user.Ville:<12} {user.Role}")
 
 
 def modifier_utilisateur(db, user_connecte):
-    """Modifie un utilisateur existant (réservé aux admins)"""
+    """Permet de modifier un utilisateur existant (fonction réservée aux admins)."""
+
     print("\n=== MODIFICATION D'UN UTILISATEUR ===")
     
+    # Saisie du login de l’utilisateur ciblé
     login = input("Entrez le login de l'utilisateur à modifier : ").strip()
     
     user = db.rechercher_par_login(login)
     
+    # Aucun utilisateur avec ce login
     if not user:
         print(f"\nErreur : Utilisateur '{login}' non trouvé.")
         return
@@ -256,115 +290,136 @@ def modifier_utilisateur(db, user_connecte):
     choix = input("\nVotre choix : ").strip()
     
     match choix:
-            case "1":
-                nouveau_nom = input("Nouveau nom : ").strip()
-                if nouveau_nom:
-                    user.set_nom(nouveau_nom)
-                    if db.modifier_utilisateur(login, nouveau_nom=nouveau_nom):
-                        print("✓ Nom modifié avec succès dans la base de données.")
-    
-            case "2":
-                nouveau_prenom = input("Nouveau prénom : ").strip()
-                if nouveau_prenom:
-                    user.set_prenom(nouveau_prenom)
-                    if db.modifier_utilisateur(login, nouveau_prenom=nouveau_prenom):
-                        print("✓ Prénom modifié avec succès dans la base de données.")
+
+        case "1":
+            # Modification du nom
+            nouveau_nom = input("Nouveau nom : ").strip()
+            if nouveau_nom:
+                user.set_nom(nouveau_nom)
+                db.modifier_utilisateur(login, nouveau_nom=nouveau_nom)
+
+        case "2":
+            # Modification du prénom
+            nouveau_prenom = input("Nouveau prénom : ").strip()
+            if nouveau_prenom:
+                user.set_prenom(nouveau_prenom)
+                db.modifier_utilisateur(login, nouveau_prenom=nouveau_prenom)
+
+        case "3":
+            # Modification du rôle, avec contrôle des permissions
+            print("\nRôles disponibles :")
             
-            case "3":
-                print("\nRôles disponibles :")
-                if est_superadmin(user_connecte):
-                    roles_a_afficher = ROLES_DISPONIBLES[:2]  # Super Admins auront tous les rôles d'affichés, sauf Super Admin
-                    for i, role in enumerate(roles_a_afficher, 1):
-                        print(f"{i}. {role}")
-                elif est_admin(user_connecte):
-                    roles_a_afficher = ROLES_DISPONIBLES[:1]  # Admins auront seulement "Utilisateur" d'affiché
-                    for i, role in enumerate(roles_a_afficher, 1):
-                        print(f"{i}. {role}")
-                else:   
-                    print("Erreur : Vous n'avez pas les permissions pour modifier le rôle de l'utilisateur.")
+            if est_superadmin(user_connecte):
+                roles_a_afficher = ROLES_DISPONIBLES[:2]
+            elif est_admin(user_connecte):
+                roles_a_afficher = ROLES_DISPONIBLES[:1]
+            else:
+                print("Erreur : Vous n'avez pas les permissions pour modifier le rôle.")
+                return
+            
+            for i, role in enumerate(roles_a_afficher, 1):
+                print(f"{i}. {role}")
+            
+            choix_role = input("\nChoisissez un rôle (numéro) : ").strip()
+
+            try:
+                index_role = int(choix_role) - 1
+
+                if est_superadmin(user_connecte) and 0 <= index_role < 2:
+                    role = ROLES_DISPONIBLES[index_role]
+
+                elif est_admin(user_connecte) and index_role == 0:
+                    role = ROLES_DISPONIBLES[0]
+
+                elif index_role < 0 or (not est_entier(choix_role)):
+                    print("Erreur : Numéro de rôle invalide.")
                     return
+                
+                else:
+                    print("Erreur : Vous n'avez pas les permissions pour attribuer ce rôle.")
+                    return
+
+                db.modifier_utilisateur(login, nouveau_role=role)
+
+            except ValueError:
+                print("Erreur : Veuillez entrer un numéro valide.")
+                return
+            
+        case "4":
+            # Réinitialisation du mot de passe
+            nouveau_pwd = user.generer_mot_de_passe()
+            user.hacher_mot_de_passe(nouveau_pwd)
+            
+            nouvelle_date_expiration = (datetime.now() + timedelta(days=90)).strftime('%Y-%m-%d')
+
+            if db.modifier_utilisateur(login, nouveau_hash=user.Password_Hash,
+                                       nouvelle_expiration=nouvelle_date_expiration):
+                print("✓ Mot de passe réinitialisé.")
+                print(f"Nouveau mot de passe : {nouveau_pwd}")
+
+        case "5":
+            # Annulation de la modification
+            print("Modification annulée.")
         
-                choix_role = input("\nChoisissez un rôle (numéro) : ").strip()
-                try:
-                    index_role = int(choix_role) - 1
-                    if est_superadmin(user_connecte) and 0 <= index_role < 2 : # Super Admins peuvent choisir tous les rôles sauf Super Admin (Valeur 1 et 2 en input | 0 et 1 en index)
-                        role = ROLES_DISPONIBLES[index_role]
-                    elif est_admin(user_connecte) and index_role == 0: # Admins ne peuvent choisir que "Utilisateur" (Valeur 1 en input et 0 en index)
-                        role = ROLES_DISPONIBLES[0] 
-                    elif index_role < 0 or (not est_entier(choix_role)): # Si le choix est négatif ou pas un entier, renvoie une erreur
-                        print("Erreur : Numéro de rôle invalide.")
-                        return
-                    else:  
-                        print("Erreur : Vous n'avez pas les permissions pour attribuer ce rôle.")
-                        return                
-                except ValueError:
-                    print("Erreur : Veuillez entrer un numéro valide.")
-                    return
-                    
-            case "4":
-                nouveau_pwd = user.generer_mot_de_passe()
-                user.hacher_mot_de_passe(nouveau_pwd)
-                nouvelle_date_expiration = (datetime.now() + timedelta(days=90)).strftime('%Y-%m-%d') # Définir une nouvelle date d'expiration dans 90 jours à partir de la date de génération
-
-
-                if db.modifier_utilisateur(login, nouveau_hash=user.Password_Hash, nouvelle_date_expiration=nouvelle_date_expiration):
-                    print(f"✓ Mot de passe réinitialisé avec succès.")
-                    print(f"Nouveau mot de passe : {nouveau_pwd}")
-                    print("⚠ IMPORTANT : Communiquez ce mot de passe à l'utilisateur.")
-            
-            case "5":
-                print("Modification annulée.")
-            
-            case _:
-                print("Erreur : Choix invalide.")
+        case _:
+            print("Erreur : Choix invalide.")
 
 
 def supprimer_utilisateur(db, user_connecte):
-    """Supprime un utilisateur (réservé aux admins)"""
+    """Supprime un utilisateur si les permissions le permettent."""
+
     print("\n=== SUPPRESSION D'UN UTILISATEUR ===")
     
     login = input("Entrez le login de l'utilisateur à supprimer : ").strip()
     
     user = db.rechercher_par_login(login)
-    
+
+    # Vérification de l'existence
     if not user:
         print(f"\nErreur : Utilisateur '{login}' non trouvé.")
         return
     
-    # Confirmation
     print(f"\nUtilisateur : {user.Prenom} {user.Nom} ({user.Role})")
     confirmation = input("Êtes-vous sûr de vouloir supprimer cet utilisateur ? (oui/non) : ").strip().lower()
     
     if confirmation == "oui":
+
+        # Sécurité : un utilisateur ne peut se supprimer lui-même
         if user_connecte.Login == login:
             print("\nErreur : Vous ne pouvez pas supprimer votre propre compte.")
             return
+        
+        # Un Admin ne peut supprimer qu’un User (pas un Admin ni Super Admin)
         if not est_superadmin(user_connecte) and user.Role != "User":
             print("\nErreur : Vous n'avez pas les permissions pour supprimer cet utilisateur.")
             return
-        if db.supprimer_utilisateur(login):
-            print(f"\n✓ Utilisateur '{login}' supprimé avec succès.")
-        else:
-            print(f"\nErreur lors de la suppression.")
+        
+        # Exécution de la suppression
+        db.supprimer_utilisateur(login)
+        print(f"\n✓ Utilisateur '{login}' supprimé avec succès.")
+    
     else:
         print("\nSuppression annulée.")
 
 
 def changer_mon_mot_de_passe(db, user_connecte):
-    """Permet à l'utilisateur connecté de changer son propre mot de passe (accessible à tous)"""
+    """Permet à un utilisateur de modifier son propre mot de passe."""
+
     print("\n=== CHANGEMENT DE MOT DE PASSE ===")
     print(f"Utilisateur connecté : {user_connecte.Login}")
     
-    
+    # Nombre d'essais autorisés
     tentatives = 3
 
     while tentatives > 0:
-        # Demander l'ancien mot de passe
+
+        # Ancien mot de passe
         ancien_pwd = input("\nAncien mot de passe : ")
         
-        # Demander le nouveau mot de passe
+        # Nouveau mot de passe
         nouveau_pwd = input("Nouveau mot de passe (min. 4 caractères) : ")
         
+        # Vérification basique de cohérence
         if ancien_pwd == nouveau_pwd:
             print("\nErreur : Le nouveau mot de passe doit être différent de l'ancien.")
             tentatives -= 1
@@ -375,7 +430,7 @@ def changer_mon_mot_de_passe(db, user_connecte):
             tentatives -= 1
             continue
         
-        # Confirmer le nouveau mot de passe
+        # Confirmation du mot de passe
         confirmation_pwd = input("Confirmez le nouveau mot de passe : ")
         
         if nouveau_pwd != confirmation_pwd:
@@ -383,58 +438,76 @@ def changer_mon_mot_de_passe(db, user_connecte):
             tentatives -= 1
             continue
         
-        # Tenter de changer le mot de passe
+        # Tentative de modification
         if user_connecte.changer_mot_de_passe(ancien_pwd, nouveau_pwd):
-            # Mettre à jour dans la base de données
+            
+            # Mise à jour en base via le hash modifié
             if db.modifier_utilisateur(user_connecte.Login, nouveau_hash=user_connecte.Password_Hash):
                 print("\n✓ Votre mot de passe a été changé avec succès !")
                 return True
+            
             else:
                 print("\nErreur lors de la sauvegarde du nouveau mot de passe.")
                 return False
+        
+        # Si ancien mot de passe incorrect
         else:
             print("\nErreur : Ancien mot de passe incorrect.")
             tentatives -= 1
             continue
+
+    # Si les 3 tentatives sont épuisées
     print("\nNombre maximum de tentatives atteint. Retour au menu.")
 
 
-
 def authentifier_utilisateur(db):
-    """Authentifie un utilisateur """
+    """Authentifie un utilisateur à l'aide de son login et de son mot de passe."""
+
     print("\n=== AUTHENTIFICATION ===")
     
     login_valid = False
+
+    # Boucle de vérification du login
     while not login_valid:
         login = input("Login : ").strip()
 
+        # Recherche du compte en base
         user = db.rechercher_par_login(login)
+
         if not user:
             print("Login incorrect. Veuillez réessayer.")
             continue
 
+        # Vérification du blocage du compte
         if not db.verifier_bloquage_utilisateur(login):
             print("Compte bloqué. Merci de réessayer plus tard")
             continue
 
-        else:
-            login_valid = True
+        # Si tout est bon, on peut passer au mot de passe
+        login_valid = True
 
+    # Trois tentatives pour le mot de passe
     tentatives = 3
     while tentatives > 0:
+
         if tentatives < 3:
             print(f"\n⚠ Il vous reste {tentatives} tentative(s)")
+        
         mot_de_passe = input("Mot de passe : ")
         
-        # Vérifier le mot de passe
+        # Vérification du mot de passe via le hash
         if user.verifier_mot_de_passe(mot_de_passe):
             print(f"\nAuthentification réussie. Bienvenue {user.Prenom} {user.Nom} !")
             return user
+        
+        # En cas d'échec
         else:
             tentatives -= 1
+
             if tentatives > 0:
                 print("Login ou mot de passe incorrect. Veuillez réessayer.")
 
+    # Si les trois tentatives échouent
     db.bloquer_utilisateur(login)
 
     print("\n" + "=" * 60)

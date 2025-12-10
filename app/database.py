@@ -3,23 +3,30 @@ from classes import User
 from datetime import datetime, timezone
 
 class DatabaseManager:
-    """Classe pour gérer la base de données SQLite"""
-    
+    """Classe responsable de la gestion de la base SQLite.
+       Contient toutes les opérations CRUD (Create, Read, Update, Delete)."""
+
     def __init__(self, nom_base="utilisateurs.db"):
-        """Initialise la connexion à la base de données"""
+        """Initialise la base de données en créant le fichier et la table si nécessaire."""
         self.nom_base = nom_base
+        
+        # Création de la table si elle n'existe pas déjà
         self.creer_table()
+
+        # Initialisation d'un Super Admin s'il n'y a aucun utilisateur dans la base
         self.initialiser_super_admin()
     
     def get_connexion(self):
-        """Retourne une connexion à la base de données"""
+        """Retourne une nouvelle connexion à la base SQLite."""
         return sqlite3.connect(self.nom_base)
     
     def creer_table(self):
-        """Crée la table utilisateurs si elle n'existe pas"""
+        """Crée la table principale 'utilisateurs' si elle n'existe pas."""
+        
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
+        # Création de la table avec les colonnes essentielles du système
         curseur.execute("""
             CREATE TABLE IF NOT EXISTS utilisateurs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,31 +45,39 @@ class DatabaseManager:
         connexion.close()
     
     def initialiser_super_admin(self):
-        """Crée le compte Super Admin par défaut si aucun utilisateur n'existe"""
+        """Crée un compte Super Admin par défaut si la base est vide."""
+
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
-        # Vérifier s'il existe déjà des utilisateurs
+        # On vérifie combien d'utilisateurs existent actuellement dans la base
         curseur.execute("SELECT COUNT(*) FROM utilisateurs")
         nombre_users = curseur.fetchone()[0]
         
         connexion.close()
         
-        # Si aucun utilisateur, créer le Super Admin
+        # Si aucun utilisateur, on crée le Super Admin automatiquement
         if nombre_users == 0:
             print("\n" + "=" * 60)
             print(" PREMIÈRE UTILISATION - INITIALISATION")
             print("=" * 60)
             print("\nCréation du compte Super Admin par défaut...")
-            
-            # Créer l'utilisateur Super Admin
-            super_admin = User(nom="Admin", prenom="Super", ville="Paris", role="Super Admin", password_expiry="DATE('now' '+ 90 day')" , account_locked_until="DATE('now')")
+
+            # Création de l'objet User correspondant
+            super_admin = User(
+                nom="Admin",
+                prenom="Super",
+                ville="Paris",
+                role="Super Admin",
+                password_expiry="DATE('now' '+ 90 day')",
+                account_locked_until="DATE('now')"
+            )
             super_admin.Login = "superadmin"
             
-            # Définir le mot de passe "admin"
+            # Définition du mot de passe par défaut
             super_admin.hacher_mot_de_passe("admin")
             
-            # Ajouter à la base de données
+            # Enregistrement dans la base
             self.ajouter_utilisateur(super_admin)
             
             print("✓ Compte créé avec succès !")
@@ -72,11 +87,13 @@ class DatabaseManager:
             print("=" * 60)
     
     def ajouter_utilisateur(self, user):
-        """Ajoute un utilisateur dans la base de données"""
+        """Ajoute un nouvel utilisateur dans la base de données."""
+
         try:
             connexion = self.get_connexion()
             curseur = connexion.cursor()
             
+            # Insertion des données utilisateur dans la table
             curseur.execute("""
                 INSERT INTO utilisateurs (
                     login, nom, prenom, ville, role, password_hash,
@@ -84,26 +101,32 @@ class DatabaseManager:
                 )
                 VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+90 day'), datetime('now'))
             """,
-            (user.Login,user.Nom,user.Prenom,user.Ville,user.Role,user.Password_Hash))
+            (user.Login, user.Nom, user.Prenom, user.Ville, user.Role, user.Password_Hash))
 
             connexion.commit()
             connexion.close()
             return True
         
         except sqlite3.IntegrityError:
+            # Se produit en cas de login déjà existant (contrainte UNIQUE)
             print(f"Erreur : Le login '{user.Login}' existe déjà.")
             return False
+        
         except Exception as e:
+            # Capture d'éventuelles erreurs SQLite
             print(f"Erreur lors de l'ajout : {e}")
             return False
     
     def rechercher_par_login(self, login):
-        """Recherche un utilisateur par son login"""
+        """Recherche un utilisateur dans la base grâce à son login."""
+
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
+        # Sélection de toutes les informations importantes du compte
         curseur.execute("""
-            SELECT login, nom, prenom, ville, role, password_hash, password_expiry, account_locked_until
+            SELECT login, nom, prenom, ville, role,
+                   password_hash, password_expiry, account_locked_until
             FROM utilisateurs
             WHERE login = ?
         """, (login,))
@@ -112,7 +135,7 @@ class DatabaseManager:
         connexion.close()
         
         if resultat:
-            # Créer un objet User à partir des données
+            # Reconstruction d'un objet User à partir des données SQL
             user = User(
                 nom=resultat[1],
                 prenom=resultat[2],
@@ -125,15 +148,18 @@ class DatabaseManager:
             )
             return user
         
+        # Aucun utilisateur trouvé
         return None
     
     def rechercher_par_nom_prenom(self, nom, prenom):
-        """Recherche un utilisateur par nom ET prénom"""
+        """Recherche un utilisateur à partir d'un nom et d'un prénom."""
+
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
         curseur.execute("""
-            SELECT login, nom, prenom, ville, role, password_hash, password_expiry, account_locked_until
+            SELECT login, nom, prenom, ville, role,
+                   password_hash, password_expiry, account_locked_until
             FROM utilisateurs
             WHERE nom = ? AND prenom = ?
         """, (nom, prenom))
@@ -142,6 +168,7 @@ class DatabaseManager:
         connexion.close()
         
         if resultat:
+            # Construction d'un User avec les données trouvées
             user = User(
                 nom=resultat[1],
                 prenom=resultat[2],
@@ -157,10 +184,12 @@ class DatabaseManager:
         return None
         
     def lister_tous_utilisateurs(self):
-        """Retourne la liste de tous les utilisateurs"""
+        """Retourne la liste des utilisateurs présents dans la base."""
+
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
+        # Sélection basique des champs nécessaires à l'affichage
         curseur.execute("""
             SELECT login, nom, prenom, ville, role
             FROM utilisateurs
@@ -171,6 +200,8 @@ class DatabaseManager:
         connexion.close()
         
         liste_users = []
+
+        # On crée une liste d'objets User pour faciliter la gestion
         for row in resultats:
             user = User(
                 nom=row[1],
@@ -185,54 +216,62 @@ class DatabaseManager:
     
     def modifier_utilisateur(self, login, nouveau_nom=None, nouveau_prenom=None, 
                             nouvelle_ville=None, nouveau_role=None, nouveau_hash=None, nouvelle_expiration=None):
-        """Modifie les informations d'un utilisateur"""
+        """Met à jour un ou plusieurs champs d'un utilisateur."""
+
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
-        # Construire la requête dynamiquement
+        # Construction dynamique de la requête SQL selon les champs modifiés
         champs_a_modifier = []
         valeurs = []
         
-        if nouveau_nom: # Modifier le nom
+        if nouveau_nom:
             champs_a_modifier.append("nom = ?")
             valeurs.append(nouveau_nom)
         
-        if nouveau_prenom: # Modifier le prénom
+        if nouveau_prenom:
             champs_a_modifier.append("prenom = ?")
             valeurs.append(nouveau_prenom)
 
-        if nouvelle_ville: # Modifier la ville
+        if nouvelle_ville:
             champs_a_modifier.append("ville = ?")
             valeurs.append(nouvelle_ville)
         
-        if nouveau_role: # Modifier le rôle
+        if nouveau_role:
             champs_a_modifier.append("role = ?")
             valeurs.append(nouveau_role)
         
-        if nouveau_hash: # Modifier le mot de passe
+        if nouveau_hash:
             champs_a_modifier.append("password_hash = ?")
             valeurs.append(nouveau_hash)
             
-        if nouvelle_expiration: # Modifier la date d'expiration du mot de passe
+        if nouvelle_expiration:
             champs_a_modifier.append("password_expiry = ?")
             valeurs.append(nouvelle_expiration)
         
+        # Aucun champ à modifier, rien à faire
         if not champs_a_modifier:
             return False
         
+        # Ajout du login en fin de paramètres
         valeurs.append(login)
+        
+        # Construction finale de la requête SQL
         requete = f"UPDATE utilisateurs SET {', '.join(champs_a_modifier)} WHERE login = ?"
         
+        # Exécution et sauvegarde
         curseur.execute(requete, valeurs)
         connexion.commit()
         
         lignes_modifiees = curseur.rowcount
         connexion.close()
         
+        # Retourne True si au moins une ligne a été modifiée
         return lignes_modifiees > 0
     
     def supprimer_utilisateur(self, login):
-        """Supprime un utilisateur de la base de données"""
+        """Supprime définitivement un utilisateur grâce à son login."""
+
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
@@ -245,26 +284,29 @@ class DatabaseManager:
         return lignes_supprimees > 0
     
     def bloquer_utilisateur(self, login):
-        """Bloque la connexion pendant 1 minute."""
+        """Bloque un compte utilisateur pendant une durée définie (1 minute ici)."""
+
         connexion = self.get_connexion()
         curseur = connexion.cursor()
 
+        # Mise à jour du champ de verrouillage avec une date future
         curseur.execute("""
             UPDATE utilisateurs
             SET account_locked_until = datetime('now', '+1 minutes')
             WHERE login = ?
-            """, 
-        (login,)
-        )
+        """, (login,))
 
         connexion.commit()
         connexion.close()
 
-    def verifier_bloquage_utilisateur(self,login):
-        """Vérifie si le compte n'est PAS bloqué. True si connexion possible"""
+    def verifier_bloquage_utilisateur(self, login):
+        """Vérifie si un compte est bloqué.
+           Retourne True si le compte est utilisable, False si toujours verrouillé."""
+
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
+        # Récupération de la date de fin de blocage
         curseur.execute("""
             SELECT account_locked_until
             FROM utilisateurs
@@ -274,26 +316,27 @@ class DatabaseManager:
         resultats = curseur.fetchone()
         connexion.close()
         
-        if resultats == None:
+        # Si aucun enregistrement, le compte n'est pas bloqué
+        if resultats is None:
             return True
         
+        # Conversion de la chaîne SQL en datetime Python
         verrou_until = datetime.strptime(resultats[0], "%Y-%m-%d %H:%M:%S")
         verrou_until = verrou_until.replace(tzinfo=timezone.utc)
         
         maintenant = datetime.now(timezone.utc)
         
-        # Si la date (et l'heure) est passée, le compte n'est plus verrouillé
+        # Si la date de déblocage est passée, l'accès est autorisé
         if verrou_until <= maintenant:
             return True
         
-        # Calcul du temps restant de verrouillage
+        # Calcul du temps restant avant la prochaine tentative
         restant = verrou_until - maintenant
         secondes = int(restant.total_seconds())
         
         heures, reste = divmod(secondes, 3600)
         minutes, secondes = divmod(reste, 60)
         
-        # Afficher le temps de verrouillage restant
         print("\n⚠ Votre compte est actuellement verrouillé.")
         print(f"Temps restant avant la prochaine tentative : {heures} heures, {minutes} minute(s) et {secondes} seconde(s).")
         
