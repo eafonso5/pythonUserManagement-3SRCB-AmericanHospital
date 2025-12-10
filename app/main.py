@@ -13,27 +13,7 @@ def main():
     # Initialiser la base de données
     db = DatabaseManager()
     
-    # Permettre 3 tentatives de connexion
-    tentatives = 3
-    user_connecte = None
-    
-    while tentatives > 0 and not user_connecte:
-        if tentatives < 3:
-            print(f"\n⚠ Il vous reste {tentatives} tentative(s)")
-        
-        user_connecte = authentifier_utilisateur(db)
-        
-        if not user_connecte:
-            tentatives -= 1
-            if tentatives > 0:
-                print("Veuillez réessayer.")
-    
-    if not user_connecte:
-        print("\n" + "=" * 60)
-        print("ACCÈS REFUSÉ - Nombre maximum de tentatives atteint")
-        print("=" * 60)
-        print("Programme terminé pour des raisons de sécurité.")
-        return
+    user_connecte = authentifier_utilisateur(db)
     
     # Si authentification réussie, lancer le menu approprié
     menu_principal(db, user_connecte)

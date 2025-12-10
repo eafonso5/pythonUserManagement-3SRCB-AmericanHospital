@@ -27,8 +27,8 @@ class DatabaseManager:
                 prenom TEXT NOT NULL,
                 ville TEXT NOT NULL,
                 role TEXT NOT NULL,
-                password_hash TEXT NOT NULL
-                password_expiry DATE NOT NULL
+                password_hash TEXT NOT NULL,
+                password_expiry DATE NOT NULL,
                 account_locked_until DATE NOT NULL
             )
         """)

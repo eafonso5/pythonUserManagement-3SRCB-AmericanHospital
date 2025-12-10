@@ -262,17 +262,17 @@ def changer_mon_mot_de_passe(db, user_connecte):
     print(f"Utilisateur connecté : {user_connecte.Login}")
     
     # Demander l'ancien mot de passe
-    ancien_pwd = input("\nAncien mot de passe : ").strip()
+    ancien_pwd = input("\nAncien mot de passe : ")
     
     # Demander le nouveau mot de passe
-    nouveau_pwd = input("Nouveau mot de passe (min. 4 caractères) : ").strip()
+    nouveau_pwd = input("Nouveau mot de passe (min. 4 caractères) : ")
     
     if len(nouveau_pwd) < 4:
         print("\n✗ Le mot de passe doit contenir au moins 4 caractères.")
         return False
     
     # Confirmer le nouveau mot de passe
-    confirmation_pwd = input("Confirmez le nouveau mot de passe : ").strip()
+    confirmation_pwd = input("Confirmez le nouveau mot de passe : ")
     
     if nouveau_pwd != confirmation_pwd:
         print("\n✗ Les mots de passe ne correspondent pas.")
@@ -292,23 +292,42 @@ def changer_mon_mot_de_passe(db, user_connecte):
         return False
 
 
+
 def authentifier_utilisateur(db):
     """Authentifie un utilisateur """
     print("\n=== AUTHENTIFICATION ===")
     
-    login = input("Login : ").strip()
-    mot_de_passe = input("Mot de passe : ").strip()
-    
-    user = db.rechercher_par_login(login)
-    
-    if not user:
-        print("\nLogin ou mot de passe incorrect.")
-        return None
-    
-    # Vérifier le mot de passe
-    if user.verifier_mot_de_passe(mot_de_passe):
-        print(f"\nAuthentification réussie. Bienvenue {user.Prenom} {user.Nom} !")
-        return user
-    else:
-        print("\nLogin ou mot de passe incorrect.")
-        return None
+    login_valid = False
+    while not login_valid:
+        login = input("Login : ").strip()
+
+        user = db.rechercher_par_login(login)
+        if not user:
+            print("Login incorrect. Veuillez réessayer.")
+        else:
+            login_valid = True
+
+    tentatives = 3
+    while tentatives > 0:
+        if tentatives < 3:
+            print(f"\n⚠ Il vous reste {tentatives} tentative(s)")
+        mot_de_passe = input("Mot de passe : ")
+        
+        # Vérifier le mot de passe
+        if user.verifier_mot_de_passe(mot_de_passe):
+            print(f"\nAuthentification réussie. Bienvenue {user.Prenom} {user.Nom} !")
+            return user
+        else:
+            tentatives -= 1
+            if tentatives > 0:
+                print("Login ou mot de passe incorrect. Veuillez réessayer.")
+
+    connexion = db.get_connexion
+    curseur = connexion.cursor()
+
+    curseur.execute("UPDATE utilisateurs SET account_locked_until = 'now' '+ 90 day' WHERE login = ?", user.Login)
+
+    print("\n" + "=" * 60)
+    print(f"ACCÈS REFUSÉ - Nombre maximum de tentatives atteint. Le compte {user.Login} a été bloqué.")
+    print("=" * 60)
+    quit()
