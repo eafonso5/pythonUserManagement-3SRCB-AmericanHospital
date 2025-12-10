@@ -355,39 +355,48 @@ def changer_mon_mot_de_passe(db, user_connecte):
     print("\n=== CHANGEMENT DE MOT DE PASSE ===")
     print(f"Utilisateur connecté : {user_connecte.Login}")
     
-    # Demander l'ancien mot de passe
-    ancien_pwd = input("\nAncien mot de passe : ")
     
-    # Demander le nouveau mot de passe
-    nouveau_pwd = input("Nouveau mot de passe (min. 4 caractères) : ")
-    
-    if ancien_pwd == nouveau_pwd:
-        print("\nErreur : Le nouveau mot de passe doit être différent de l'ancien.")
-        return False
-    
-    if len(nouveau_pwd) < 4:
-        print("\nErreur : Le mot de passe doit contenir au moins 4 caractères.")
-        return False
-    
-    # Confirmer le nouveau mot de passe
-    confirmation_pwd = input("Confirmez le nouveau mot de passe : ")
-    
-    if nouveau_pwd != confirmation_pwd:
-        print("\nErreur : Les mots de passe ne correspondent pas.")
-        return False
-    
-    # Tenter de changer le mot de passe
-    if user_connecte.changer_mot_de_passe(ancien_pwd, nouveau_pwd):
-        # Mettre à jour dans la base de données
-        if db.modifier_utilisateur(user_connecte.Login, nouveau_hash=user_connecte.Password_Hash):
-            print("\n✓ Votre mot de passe a été changé avec succès !")
-            return True
+    tentatives = 3
+
+    while tentatives > 0:
+        # Demander l'ancien mot de passe
+        ancien_pwd = input("\nAncien mot de passe : ")
+        
+        # Demander le nouveau mot de passe
+        nouveau_pwd = input("Nouveau mot de passe (min. 4 caractères) : ")
+        
+        if ancien_pwd == nouveau_pwd:
+            print("\nErreur : Le nouveau mot de passe doit être différent de l'ancien.")
+            tentatives -= 1
+            continue
+        
+        if len(nouveau_pwd) < 4:
+            print("\nErreur : Le mot de passe doit contenir au moins 4 caractères.")
+            tentatives -= 1
+            continue
+        
+        # Confirmer le nouveau mot de passe
+        confirmation_pwd = input("Confirmez le nouveau mot de passe : ")
+        
+        if nouveau_pwd != confirmation_pwd:
+            print("\nErreur : Les mots de passe ne correspondent pas.")
+            tentatives -= 1
+            continue
+        
+        # Tenter de changer le mot de passe
+        if user_connecte.changer_mot_de_passe(ancien_pwd, nouveau_pwd):
+            # Mettre à jour dans la base de données
+            if db.modifier_utilisateur(user_connecte.Login, nouveau_hash=user_connecte.Password_Hash):
+                print("\n✓ Votre mot de passe a été changé avec succès !")
+                return True
+            else:
+                print("\nErreur lors de la sauvegarde du nouveau mot de passe.")
+                return False
         else:
-            print("\nErreur lors de la sauvegarde du nouveau mot de passe.")
-            return False
-    else:
-        print("\nErreur : Ancien mot de passe incorrect.")
-        return False
+            print("\nErreur : Ancien mot de passe incorrect.")
+            tentatives -= 1
+            continue
+    print("\nNombre maximum de tentatives atteint. Retour au menu.")
 
 
 
