@@ -218,7 +218,7 @@ def modifier_utilisateur(db, user_connecte):
     user = db.rechercher_par_login(login)
     
     if not user:
-        print(f"\n✗ Utilisateur '{login}' non trouvé.")
+        print(f"\nErreur : Utilisateur '{login}' non trouvé.")
         return
     
     print(f"\nUtilisateur trouvé : {user.Prenom} {user.Nom}")
@@ -292,7 +292,7 @@ def modifier_utilisateur(db, user_connecte):
                 print("Modification annulée.")
             
             case _:
-                print("✗ Choix invalide.")
+                print("Erreur : Choix invalide.")
 
 
 def supprimer_utilisateur(db, user_connecte):
@@ -315,6 +315,9 @@ def supprimer_utilisateur(db, user_connecte):
         if user_connecte.Login == login:
             print("\nErreur : Vous ne pouvez pas supprimer votre propre compte.")
             return
+        if not est_superadmin(user_connecte) and user.Role != "User":
+            print("\nErreur : Vous n'avez pas les permissions pour supprimer cet utilisateur.")
+            return
         if db.supprimer_utilisateur(login):
             print(f"\n✓ Utilisateur '{login}' supprimé avec succès.")
         else:
@@ -335,14 +338,14 @@ def changer_mon_mot_de_passe(db, user_connecte):
     nouveau_pwd = input("Nouveau mot de passe (min. 4 caractères) : ")
     
     if len(nouveau_pwd) < 4:
-        print("\n✗ Le mot de passe doit contenir au moins 4 caractères.")
+        print("\nErreur : Le mot de passe doit contenir au moins 4 caractères.")
         return False
     
     # Confirmer le nouveau mot de passe
     confirmation_pwd = input("Confirmez le nouveau mot de passe : ")
     
     if nouveau_pwd != confirmation_pwd:
-        print("\n✗ Les mots de passe ne correspondent pas.")
+        print("\nErreur : Les mots de passe ne correspondent pas.")
         return False
     
     # Tenter de changer le mot de passe
@@ -352,10 +355,10 @@ def changer_mon_mot_de_passe(db, user_connecte):
             print("\n✓ Votre mot de passe a été changé avec succès !")
             return True
         else:
-            print("\n✗ Erreur lors de la sauvegarde du nouveau mot de passe.")
+            print("\nErreur lors de la sauvegarde du nouveau mot de passe.")
             return False
     else:
-        print("\n✗ Ancien mot de passe incorrect.")
+        print("\nErreur : Ancien mot de passe incorrect.")
         return False
 
 
