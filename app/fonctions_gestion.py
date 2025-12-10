@@ -45,6 +45,13 @@ def creer_utilisateur(db,user_connecte):
         print("Erreur : Le prénom ne peut pas être vide.")
         return
     
+    # Vérification du NOM + PRÉNOM
+    user_deja_present = db.rechercher_par_nom_prenom(nom, prenom)
+    if user_deja_present:
+        print(f"Erreur : Un utilisateur avec le nom '{nom}' et le prénom '{prenom}' existe déjà ")
+        print(f"(Login de l'utilisateur : {user_deja_present.Login}).")
+        return
+    
     # Déterminer les rôles attribuables en fonction du rôle du créateur
     if est_superadmin(user_connecte):      # Super Admin peut créer User et Admin (adapter si tu veux ajouter "Super Admin")
         roles_attribuables = ROLES_DISPONIBLES[:2]
@@ -104,14 +111,18 @@ def creer_utilisateur(db,user_connecte):
     # Créer l'objet User
     user = User(nom, prenom, ville, role)
     
-    # Vérifier si le login existe déjà
-    user_existe = db.rechercher_par_login(user.Login)
-    if user_existe:
-        print(f"Erreur : Un utilisateur avec le login '{user.Login}' existe déjà.")
-        return
-    
-    # Générer le login
+    # Générer le login de l'utilisateur
     user.generer_login()
+    login_de_base = user.Login
+    
+    # S'assurer que le login est unique
+    nouveau_login = login_de_base # Permet de conserver le login de base si pas de conflit
+    suffixe = 1
+    while db.rechercher_par_login(nouveau_login) is not None: # Tant qu'un utilisateur avec ce login existe, on ajoute un suffixe incrémental
+        nouveau_login = f"{login_de_base}{suffixe}"
+        suffixe += 1
+    
+    user.Login = nouveau_login 
     
     # Générer et hacher le mot de passe
     mot_de_passe_clair = user.generer_mot_de_passe()

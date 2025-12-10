@@ -127,6 +127,35 @@ class DatabaseManager:
         
         return None
     
+    def rechercher_par_nom_prenom(self, nom, prenom):
+        """Recherche un utilisateur par nom ET prénom"""
+        connexion = self.get_connexion()
+        curseur = connexion.cursor()
+        
+        curseur.execute("""
+            SELECT login, nom, prenom, ville, role, password_hash, password_expiry, account_locked_until
+            FROM utilisateurs
+            WHERE nom = ? AND prenom = ?
+        """, (nom, prenom))
+        
+        resultat = curseur.fetchone()
+        connexion.close()
+        
+        if resultat:
+            user = User(
+                nom=resultat[1],
+                prenom=resultat[2],
+                ville=resultat[3],
+                role=resultat[4],
+                login=resultat[0],
+                password_hash=resultat[5],
+                password_expiry=resultat[6],
+                account_locked_until=resultat[7]
+            )
+            return user
+        
+        return None
+        
     def lister_tous_utilisateurs(self):
         """Retourne la liste de tous les utilisateurs"""
         connexion = self.get_connexion()
