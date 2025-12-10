@@ -103,6 +103,9 @@ def creer_utilisateur(db,user_connecte):
         print(f"Erreur : Un utilisateur avec le login '{user.Login}' existe déjà.")
         return
     
+    # Générer le login
+    user.generer_login()
+    
     # Générer et hacher le mot de passe
     mot_de_passe_clair = user.generer_mot_de_passe()
     user.hacher_mot_de_passe(mot_de_passe_clair)
