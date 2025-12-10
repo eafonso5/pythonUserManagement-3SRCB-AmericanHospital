@@ -194,17 +194,17 @@ def rechercher_utilisateur(db):
     recherche = input("Entrez votre recherche : ").strip()
 
     if not recherche:
-        print("\n✗ La recherche ne peut pas être vide.")
+        print("\nErruer : La recherche ne peut pas être vide.")
         return
 
     utilisateurs_trouves = db.recherche_generale(recherche)
 
     if not utilisateurs_trouves:
-        print(f"\n✗ Aucun utilisateur trouvé correspondant à '{recherche}'.")
+        print(f"\nErreur : Aucun utilisateur trouvé correspondant à '{recherche}'.")
         return
 
     # Affichage de tous les résultats trouvés
-    print(f"\n✓ {len(utilisateurs_trouves)} utilisateur(s) trouvé(s) pour '{recherche}':")
+    print(f"\n {len(utilisateurs_trouves)} utilisateur(s) trouvé(s) pour '{recherche}':")
     for i, user in enumerate(utilisateurs_trouves, start=1):
         print(f"\n--- Résultat {i} ---")
         user.Afficher_User()
@@ -248,25 +248,42 @@ def modifier_utilisateur(db, user_connecte):
             
             case "3":
                 print("\nRôles disponibles :")
-                for i, role in enumerate(ROLES_DISPONIBLES, 1):
-                    print(f"{i}. {role}")
+                if est_superadmin(user_connecte):
+                    roles_a_afficher = ROLES_DISPONIBLES[:2]  # Super Admins auront tous les rôles d'affichés, sauf Super Admin
+                    for i, role in enumerate(roles_a_afficher, 1):
+                        print(f"{i}. {role}")
+                elif est_admin(user_connecte):
+                    roles_a_afficher = ROLES_DISPONIBLES[:1]  # Admins auront seulement "Utilisateur" d'affiché
+                    for i, role in enumerate(roles_a_afficher, 1):
+                        print(f"{i}. {role}")
+                else:   
+                    print("Erreur : Vous n'avez pas les permissions pour modifier le rôle de l'utilisateur.")
+                    return
         
                 choix_role = input("\nChoisissez un rôle (numéro) : ").strip()
                 try:
                     index_role = int(choix_role) - 1
-                    if 0 <= index_role < len(ROLES_DISPONIBLES):
-                        nouveau_role = ROLES_DISPONIBLES[index_role]
-                        user.set_role(nouveau_role)
-                        if db.modifier_utilisateur(login, nouveau_role=nouveau_role):
-                            print("✓ Rôle modifié avec succès dans la base de données.")
+                    if est_superadmin(user_connecte) and 0 <= index_role < 2 : # Super Admins peuvent choisir tous les rôles sauf Super Admin (Valeur 1 et 2 en input | 0 et 1 en index)
+                        role = ROLES_DISPONIBLES[index_role]
+                    elif est_admin(user_connecte) and index_role == 0: # Admins ne peuvent choisir que "Utilisateur" (Valeur 1 en input et 0 en index)
+                        role = ROLES_DISPONIBLES[0] 
+                    elif index_role < 0 or (not est_entier(choix_role)): # Si le choix est négatif ou pas un entier, renvoie une erreur
+                        print("Erreur : Numéro de rôle invalide.")
+                        return
+                    else:  
+                        print("Erreur : Vous n'avez pas les permissions pour attribuer ce rôle.")
+                        return                
                 except ValueError:
-                    print("✗ Veuillez entrer un numéro valide.")
-    
+                    print("Erreur : Veuillez entrer un numéro valide.")
+                    return
+                    
             case "4":
                 nouveau_pwd = user.generer_mot_de_passe()
                 user.hacher_mot_de_passe(nouveau_pwd)
-                
-                if db.modifier_utilisateur(login, nouveau_hash=user.Password_Hash):
+                nouvelle_date_expiration = (datetime.now() + timedelta(days=90)).strftime('%Y-%m-%d') # Définir une nouvelle date d'expiration dans 90 jours à partir de la date de génération
+
+
+                if db.modifier_utilisateur(login, nouveau_hash=user.Password_Hash, nouvelle_date_expiration=nouvelle_date_expiration):
                     print(f"✓ Mot de passe réinitialisé avec succès.")
                     print(f"Nouveau mot de passe : {nouveau_pwd}")
                     print("⚠ IMPORTANT : Communiquez ce mot de passe à l'utilisateur.")
