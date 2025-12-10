@@ -1,4 +1,5 @@
 from classes import User
+from datetime import datetime, timedelta
 
 # Rôles disponibles dans le système
 ROLES_DISPONIBLES = [
@@ -62,7 +63,7 @@ def creer_utilisateur(db,user_connecte):
     choix_role = input("\nChoisissez un rôle (numéro) : ").strip() 
     try:
         index_role = int(choix_role) - 1
-        if est_superadmin(user_connecte) and 0 <= index_role < len(ROLES_DISPONIBLES)-1: # Super Admins peuvent choisir tous les rôles sauf Super Admin (Valeur 1 et 2 en input | 0 et 1 en index)
+        if est_superadmin(user_connecte) and 0 <= index_role < 2 : # Super Admins peuvent choisir tous les rôles sauf Super Admin (Valeur 1 et 2 en input | 0 et 1 en index)
             role = ROLES_DISPONIBLES[index_role]
         elif est_admin(user_connecte) and index_role == 0: # Admins ne peuvent choisir que "Utilisateur" (Valeur 1 en input et 0 en index)
             role = ROLES_DISPONIBLES[0] 
@@ -144,22 +145,68 @@ def consulter_liste_utilisateurs(db):
     print("-" * 80)
 
 
+def recherche_generale(self, recherche_recherche):
+    """
+    Recherche des utilisateurs dans TOUTES les colonnes textuelles de la table 'utilisateurs'.
+    Colonnes prises en compte : login, nom, prenom, ville, role.
+    Retourne une liste d'objets User.
+    """
+    connexion = self.get_connexion()
+    curseur = connexion.cursor()
+
+    pattern = f"%{recherche_recherche}%"
+
+    curseur.execute("""
+        SELECT login, nom, prenom, ville, role, password_expiry
+        FROM utilisateurs
+        WHERE login  LIKE ?
+            OR nom    LIKE ?
+            OR prenom LIKE ?
+            OR ville  LIKE ?
+            OR role   LIKE ?
+    """, (pattern, pattern, pattern, pattern, pattern))
+
+    resultats = curseur.fetchall()
+    connexion.close()
+
+    utilisateurs = []
+    for resultat in resultats:
+        user = User(
+            nom=resultat[1],
+            prenom=resultat[2],
+            ville=resultat[3],
+            role=resultat[4],
+            login=resultat[0],
+            password_expiry=resultat[5],
+        )
+        utilisateurs.append(user)
+
+    return utilisateurs
+
 def rechercher_utilisateur(db):
-    """Recherche et affiche un utilisateur (accessible à tous)"""
+    """Recherche et affiche un ou plusieurs utilisateurs (accessible à tous)"""
     print("\n=== RECHERCHE D'UN UTILISATEUR ===")
-    
-    login = input("Entrez le login à rechercher : ").strip()
-    
-    user = db.rechercher_par_login(login)
-    
-    if user:
-        print("\n✓ Utilisateur trouvé :")
+    print("(Recherche sur login, nom, prénom, ville ou rôle)")
+
+    recherche = input("Entrez votre recherche : ").strip()
+
+    if not recherche:
+        print("\n✗ La recherche ne peut pas être vide.")
+        return
+
+    utilisateurs_trouves = db.recherche_generale(recherche)
+
+    if not utilisateurs_trouves:
+        print(f"\n✗ Aucun utilisateur trouvé correspondant à '{recherche}'.")
+        return
+
+    # Affichage de tous les résultats trouvés
+    print(f"\n✓ {len(utilisateurs_trouves)} utilisateur(s) trouvé(s) pour '{recherche}':")
+    for i, user in enumerate(utilisateurs_trouves, start=1):
+        print(f"\n--- Résultat {i} ---")
         user.Afficher_User()
-    else:
-        print(f"\n✗ Aucun utilisateur trouvé avec le login '{login}'.")
 
-
-def modifier_utilisateur(db):
+def modifier_utilisateur(db, user_connecte):
     """Modifie un utilisateur existant (réservé aux admins)"""
     print("\n=== MODIFICATION D'UN UTILISATEUR ===")
     
@@ -195,30 +242,52 @@ def modifier_utilisateur(db):
             if db.modifier_utilisateur(login, nouveau_prenom=nouveau_prenom):
                 print("✓ Prénom modifié avec succès dans la base de données.")
     
-    elif choix == "3":
-        print("\nRôles disponibles :")
-        for i, role in enumerate(ROLES_DISPONIBLES, 1):
-            print(f"{i}. {role}")
+    elif choix == "3": # Modifier le rôle
         
-        choix_role = input("\nChoisissez un rôle (numéro) : ").strip()
+         # Listing des rôles
+        print("\nRôles disponibles :")
+        if est_superadmin(user_connecte):
+            roles_a_afficher = ROLES_DISPONIBLES[:2]  # Super Admins auront tous les rôles d'affichés, sauf Super Admin
+            for i, role in enumerate(roles_a_afficher, 1):
+                print(f"{i}. {role}")
+        elif est_admin(user_connecte):
+            roles_a_afficher = ROLES_DISPONIBLES[:1]  # Admins auront seulement "Utilisateur" d'affiché
+            for i, role in enumerate(roles_a_afficher, 1):
+                print(f"{i}. {role}")
+        else:   
+            print("Erreur : Vous n'avez pas les permissions pour modifier le rôle de l'utilisateur.")
+            return
+        
+        # Choix du rôle 
+        choix_role = input("\nChoisissez un nouveau rôle (numéro) : ").strip() 
         try:
             index_role = int(choix_role) - 1
-            if 0 <= index_role < len(ROLES_DISPONIBLES):
-                nouveau_role = ROLES_DISPONIBLES[index_role]
-                user.set_role(nouveau_role)
-                if db.modifier_utilisateur(login, nouveau_role=nouveau_role):
-                    print("✓ Rôle modifié avec succès dans la base de données.")
+            if est_superadmin(user_connecte) and 0 <= index_role < 2 : # Super Admins peuvent choisir tous les rôles sauf Super Admin (Valeur 1 et 2 en input | 0 et 1 en index)
+                role = ROLES_DISPONIBLES[index_role]
+            elif est_admin(user_connecte) and index_role == 0: # Admins ne peuvent choisir que "Utilisateur" (Valeur 1 en input et 0 en index)
+                role = ROLES_DISPONIBLES[0] 
+            elif index_role < 0 or (not est_entier(choix_role)): # Si le choix est négatif ou pas un entier, renvoie une erreur
+                print("Erreur : Numéro de rôle invalide.")
+                return
+            else:  
+                print("Erreur : Vous n'avez pas les permissions pour attribuer ce rôle.")
+                return
         except ValueError:
-            print("✗ Veuillez entrer un numéro valide.")
+            print("Erreur : Veuillez entrer un numéro valide.")
+            return
+    
     
     elif choix == "4":
-        nouveau_pwd = user.generer_mot_de_passe()
-        user.hacher_mot_de_passe(nouveau_pwd)
+        nouveau_pwd = user.generer_mot_de_passe() # Générer un nouveau mot de passe
+        user.hacher_mot_de_passe(nouveau_pwd) # Hacher le nouveau mot de passe
+        nouvelle_date_expiration = (datetime.now() + timedelta(days=90)).strftime('%Y-%m-%d') # Définir une nouvelle date d'expiration dans 90 jours à partir de la date de génération
         
-        if db.modifier_utilisateur(login, nouveau_hash=user.Password_Hash):
+        if db.modifier_utilisateur(login, nouveau_hash=user.Password_Hash, nouvelle_date_expiration=nouvelle_date_expiration):
             print(f"✓ Mot de passe réinitialisé avec succès.")
             print(f"Nouveau mot de passe : {nouveau_pwd}")
+            print(f"Nouvelle date d'expiration du mot de passe : {nouvelle_date_expiration}")
             print("⚠ IMPORTANT : Communiquez ce mot de passe à l'utilisateur.")
+            
     
     elif choix == "5":
         print("Modification annulée.")
