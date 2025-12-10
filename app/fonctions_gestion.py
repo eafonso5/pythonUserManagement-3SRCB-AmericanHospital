@@ -337,6 +337,9 @@ def changer_mon_mot_de_passe(db, user_connecte):
     # Demander le nouveau mot de passe
     nouveau_pwd = input("Nouveau mot de passe (min. 4 caractères) : ")
     
+    if ancien_pwd == nouveau_pwd:
+        print("\nErreur : Le nouveau mot de passe doit être différent de l'ancien.")
+        return False
     if len(nouveau_pwd) < 4:
         print("\nErreur : Le mot de passe doit contenir au moins 4 caractères.")
         return False
