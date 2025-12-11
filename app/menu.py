@@ -1,153 +1,136 @@
-import secrets
-import hashlib
-
-class Salarie(object):
-    """Classe représentant un salarié de l'hôpital.
-       Sert de base pour la classe User (héritage)."""
-
-    def __init__(self, nom, prenom, ville):
-        """Initialise les informations principales d’un salarié."""
-        self.Nom = nom
-        self.Prenom = prenom
-        self.Ville = ville
-    
-    # ------------ Getters ------------
-
-    def get_nom(self):
-        """Retourne le nom du salarié."""
-        return self.Nom
-    
-    def get_prenom(self):
-        """Retourne le prénom du salarié."""
-        return self.Prenom
-    
-    def get_ville(self):
-        """Retourne la ville du salarié."""
-        return self.Ville
-
-    # ------------ Setters ------------
-
-    def set_nom(self, nouveau_nom):
-        """Modifie le nom si la nouvelle valeur est valide."""
-        if nouveau_nom.strip() == "":
-            print("Le nom de l'employé ne peut pas être vide !")
-        else:
-            self.Nom = nouveau_nom
-            print("Le Nom a été modifié.")
-    
-    def set_prenom(self, nouveau_prenom):
-        """Modifie le prénom si la nouvelle valeur est valide."""
-        if nouveau_prenom.strip() == "":
-            print("Le prénom de l'employé ne peut pas être vide !")
-        else:
-            self.Prenom = nouveau_prenom
-            print("Le Prénom a été modifié.")
-
-    def set_ville(self, nouvelle_ville):
-        """Modifie la ville du salarié si la nouvelle valeur est valide."""
-        if nouvelle_ville.strip() == "":
-            print("La ville de l'employé ne peut pas être vide !")
-        else:
-            self.Ville = nouvelle_ville
-            print("La ville a été modifié.")
-    
-    def afficher(self):
-        """Affiche un résumé de création du salarié."""
-        print(f"{self.Prenom} {self.Nom} a été ajouté(e) en tant que Salarié.")
+from fonctions_gestion import (
+    creer_utilisateur, consulter_liste_utilisateurs, rechercher_utilisateur,
+    modifier_utilisateur, supprimer_utilisateur, changer_mon_mot_de_passe,
+    est_admin, consulter_profil
+)
 
 
-# ----------------------------------------------------------------------------------------- #
+def afficher_menu_admin(user_connecte):
+    """Affiche le menu destiné aux administrateurs."""
 
-class User(Salarie):
-    """Classe représentant un utilisateur du système.
-       Hérite des informations de base d’un salarié."""
+    # Affiche un en-tête indiquant le rôle et l'identité de l'utilisateur connecté
+    print("\n" + "=" * 60)
+    print(" GESTION DES UTILISATEURS - AMERICAN HOSPITAL")
+    print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
+    print(" Mode : ADMINISTRATEUR")
+    print("=" * 60)
 
-    def __init__(self, nom, prenom, ville, role, login=None, password_hash=None, password_expiry=None, account_locked_until=None):
-        """Initialise un utilisateur en appelant d'abord la classe parent."""
+    # Affichage de toutes les options accessibles aux administrateurs
+    print("\n1. Créer un nouvel utilisateur")
+    print("2. Consulter la liste des utilisateurs")
+    print("3. Rechercher un utilisateur")
+    print("4. Modifier un utilisateur")
+    print("5. Supprimer un utilisateur")
+    print("6. Consulter mon profil")
+    print("7. Changer mon mot de passe")
+    print("8. Quitter")
+    print("\n" + "=" * 60) 
+
+
+def afficher_menu_user(user_connecte):
+    """Affiche le menu destiné aux utilisateurs standard."""
+
+    # En-tête filtré pour les Users avec options limitées
+    print("\n" + "=" * 60)
+    print(" GESTION DES UTILISATEURS - AMERICAN HOSPITAL")
+    print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
+    print(" Mode : USER")
+    print("=" * 60)
+
+    # Affichage des actions disponibles pour un utilisateur classique
+    print("\n1. Consulter mon profil")
+    print("2. Changer mon mot de passe")
+    print("3. Quitter")
+    print("\n" + "=" * 60)
+
+
+def menu_administrateur(db, user_connecte):
+    """Point d'entrée du menu administrateur.
+       Boucle permettant d'exécuter les actions tant que l'utilisateur reste dans le menu."""
+
+    while True:
+        # On affiche systématiquement le menu avant chaque choix
+        afficher_menu_admin(user_connecte)
+
+        # Lecture du choix utilisateur
+        choix = input("\nVotre choix : ").strip()
         
-        # Appel explicite du constructeur de Salarie
-        Salarie.__init__(self, nom, prenom, ville)
+        # Gestion des actions via pattern matching (structure moderne Python)
+        match choix:
+            case "1":
+                # Création d'un nouvel utilisateur
+                creer_utilisateur(db, user_connecte)
         
-        # Ajout des propriétés spécifiques à un utilisateur
-        self.Role = role
-        self.Login = login
-        self.Password_Hash = password_hash
-        # Les champs password_expiry et account_locked_until existent en base
-        # mais ne sont pas stockés ici directement (optionnel selon tes besoins)
+            case "2":
+                # Consultation de tous les comptes existants
+                consulter_liste_utilisateurs(db)
+        
+            case "3":
+                # Recherche ciblée dans les utilisateurs
+                rechercher_utilisateur(db)
+        
+            case "4":
+                # Modification d'un utilisateur existant
+                modifier_utilisateur(db, user_connecte)
+        
+            case "5":
+                # Suppression d'un compte
+                supprimer_utilisateur(db, user_connecte)
+        
+            case "6":
+                # Consultation des informations personnelles de l'administrateur
+                consulter_profil(user_connecte)        
+        
+            case "7":
+                # Changement du mot de passe personnel
+                changer_mon_mot_de_passe(db, user_connecte)
+        
+            case "8":
+                # Sortie propre du menu administrateur
+                print("Au revoir !")
+                break
+            
+            case _:
+                # Gestion d’une saisie invalide
+                print("\nChoix invalide. Veuillez réessayer.")
 
-    def generer_login(self):
-        """Crée le login à partir de la première lettre du prénom + le nom complet."""
-        
-        # Première lettre du prénom (en minuscule)
-        premiere_lettre = self.Prenom[0].lower()
 
-        # Nom complet sans espaces, en minuscule
-        nom_complet = self.Nom.replace(" ", "").lower()
+def menu_utilisateur(db, user_connecte):
+    """Menu réservé aux utilisateurs simples."""
 
-        # Association pour créer le login par défaut
-        self.Login = premiere_lettre + nom_complet
-    
-    def generer_mot_de_passe(self):
-        """Génère un mot de passe temporaire aléatoire."""
-        return secrets.token_urlsafe(12)
-    
-    def hacher_mot_de_passe(self, mot_de_passe_clair):
-        """Transforme un mot de passe en hash SHA-256 pour stockage sécurisé."""
-        
-        # Création d'un objet SHA-256
-        sha256 = hashlib.sha256()
+    while True:
+        # Affiche l’interface dédiée aux Users
+        afficher_menu_user(user_connecte)
 
-        # Ajout du mot de passe dans le calcul du hash
-        sha256.update(mot_de_passe_clair.encode('utf-8'))
+        # Récupération du choix
+        choix = input("\nVotre choix : ").strip()
+        
+        match choix:
+            case "1":
+                # Affiche uniquement les informations du compte connecté
+                consulter_profil(user_connecte)
+        
+            case "2":
+                # L'utilisateur peut modifier son propre mot de passe
+                changer_mon_mot_de_passe(db, user_connecte)
+            
+            case "3":
+                # Quitte proprement le menu utilisateur
+                print("Au revoir !")
+                break
+            
+            case _:
+                # Erreur de saisie
+                print("\nChoix invalide. Veuillez réessayer.")
 
-        # Stockage du résultat final (hexadécimal)
-        hash_pwd = sha256.hexdigest()
-        self.Password_Hash = hash_pwd
-    
-    def verifier_mot_de_passe(self, mot_de_passe_clair):
-        """Compare un mot de passe saisi avec le hash enregistré."""
-        
-        # Si aucun mot de passe stocké, vérification impossible
-        if not self.Password_Hash:
-            return False
-        
-        # Hachage du mot de passe saisi
-        sha256 = hashlib.sha256()
-        sha256.update(mot_de_passe_clair.encode('utf-8'))
 
-        # Comparaison entre le hash calculé et celui enregistré
-        return sha256.hexdigest() == self.Password_Hash
-    
-    def changer_mot_de_passe(self, ancien_mot_de_passe, nouveau_mot_de_passe):
-        """Effectue la modification du mot de passe après vérification."""
-        
-        # L'ancien mot de passe doit correspondre au hash existant
-        if not self.verifier_mot_de_passe(ancien_mot_de_passe):
-            return False
-        
-        # Vérification de taille (peut être renforcée si besoin)
-        if len(nouveau_mot_de_passe) < 4:
-            print("Erreur : Le mot de passe doit contenir au moins 4 caractères.")
-            return False
-        
-        # Hachage et stockage du nouveau mot de passe
-        self.hacher_mot_de_passe(nouveau_mot_de_passe)
-        return True
-    
-    def get_role(self):
-        """Retourne le rôle attribué à l'utilisateur."""
-        return self.Role
-    
-    def set_role(self, nouveau_role):
-        """Change le rôle de l'utilisateur."""
-        self.Role = nouveau_role
-        print("Le Rôle a été modifié.")
-    
-    def Afficher_User(self):
-        """Affiche les informations personnelles de l'utilisateur."""
-        print("\n--- Fiche Utilisateur ---")
-        print(f"Login        : {self.Login}")
-        print(f"Nom          : {self.get_nom()}")
-        print(f"Prénom       : {self.get_prenom()}")
-        print(f"Ville        : {self.get_ville()}")
-        print(f"Rôle         : {self.Role}")
+def menu_principal(db, user_connecte):
+    """Redirige l'utilisateur vers le menu adapté en fonction de son rôle."""
+
+    # Un admin ou super admin est envoyé vers le menu complet
+    if est_admin(user_connecte):
+        menu_administrateur(db, user_connecte)
+
+    # Les utilisateurs standards sont envoyés vers le menu simplifié
+    else:
+        menu_utilisateur(db, user_connecte)
