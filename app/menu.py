@@ -63,11 +63,11 @@ def menu_administrateur(db, user_connecte):
         
             case "2":
                 # Consultation de tous les comptes existants
-                consulter_liste_utilisateurs(db)
+                consulter_liste_utilisateurs(db, user_connecte)
         
             case "3":
                 # Recherche ciblée dans les utilisateurs
-                rechercher_utilisateur(db)
+                rechercher_utilisateur(db, user_connecte)
         
             case "4":
                 # Modification d'un utilisateur existant
