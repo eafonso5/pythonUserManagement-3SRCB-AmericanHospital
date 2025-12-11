@@ -10,8 +10,6 @@ class Salarie(object):
         self.Nom = nom
         self.Prenom = prenom
         self.Ville = ville
-    
-    # ------------ Getters ------------
 
     def get_nom(self):
         """Retourne le nom du salarié."""
@@ -25,7 +23,6 @@ class Salarie(object):
         """Retourne la ville du salarié."""
         return self.Ville
 
-    # ------------ Setters ------------
 
     def set_nom(self, nouveau_nom):
         """Modifie le nom si la nouvelle valeur est valide."""
@@ -55,8 +52,6 @@ class Salarie(object):
         """Affiche un résumé de création du salarié."""
         print(f"{self.Prenom} {self.Nom} a été ajouté(e) en tant que Salarié.")
 
-
-# ----------------------------------------------------------------------------------------- #
 
 class User(Salarie):
     """Classe représentant un utilisateur du système.
