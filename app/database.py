@@ -131,19 +131,28 @@ class DatabaseManager:
             print(f"Erreur lors de l'ajout : {erreur}")
             return False
     
-    def rechercher_par_login(self, login):
+    def rechercher_par_login(self, login, ville_visible=None):
         """Recherche un utilisateur dans la base grâce à son login."""
 
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
         # Sélection de toutes les informations importantes du compte
-        curseur.execute("""
-            SELECT login, nom, prenom, ville, role,
-                   password_hash, password_expiry, account_locked_until
-            FROM utilisateurs
-            WHERE login = ?
-        """, (login,))
+        if ville_visible is None:
+            curseur.execute("""
+                SELECT login, nom, prenom, ville, role,
+                    password_hash, password_expiry, account_locked_until
+                FROM utilisateurs
+                WHERE login = ?
+            """, (login,))          
+        
+        else:
+            curseur.execute("""
+                SELECT login, nom, prenom, ville, role,
+                    password_hash, password_expiry, account_locked_until
+                FROM utilisateurs
+                WHERE login = ? AND ville = ?
+            """, (login, ville_visible))
         
         resultat = curseur.fetchone()
         connexion.close()
@@ -165,18 +174,27 @@ class DatabaseManager:
         # Aucun utilisateur trouvé
         return None
     
-    def rechercher_par_nom_prenom(self, nom, prenom):
+    def rechercher_par_nom_prenom(self, nom, prenom, ville_visible=None):
         """Recherche un utilisateur à partir d'un nom et d'un prénom."""
 
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
-        curseur.execute("""
-            SELECT login, nom, prenom, ville, role,
-                   password_hash, password_expiry, account_locked_until
-            FROM utilisateurs
-            WHERE nom = ? AND prenom = ?
-        """, (nom, prenom))
+        if ville_visible is None:
+            curseur.execute("""
+                SELECT login, nom, prenom, ville, role,
+                    password_hash, password_expiry, account_locked_until
+                FROM utilisateurs
+                WHERE nom = ? AND prenom = ?
+            """, (nom, prenom))
+        
+        else:
+            curseur.execute("""
+                SELECT login, nom, prenom, ville, role,
+                    password_hash, password_expiry, account_locked_until
+                FROM utilisateurs
+                WHERE nom = ? AND prenom = ? AND ville = ?
+            """, (nom, prenom, ville_visible))
         
         resultat = curseur.fetchone()
         connexion.close()
@@ -197,18 +215,28 @@ class DatabaseManager:
         
         return None
         
-    def lister_tous_utilisateurs(self):
-        """Retourne la liste des utilisateurs présents dans la base."""
+    def lister_tous_utilisateurs(self, ville_visible=None):
+        """Retourne la liste des utilisateurs présents dans la base, dans les villes autorisées ."""
 
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
         # Sélection basique des champs nécessaires à l'affichage
-        curseur.execute("""
-            SELECT login, nom, prenom, ville, role
-            FROM utilisateurs
-            ORDER BY login
-        """)
+        # si super admin, pas de filtre sur la ville
+        if ville_visible is None:
+            curseur.execute("""
+                SELECT login, nom, prenom, ville, role
+                FROM utilisateurs
+                ORDER BY login
+            """)
+        # sinon, filtre sur la ville spécifiée
+        else:
+            curseur.execute("""
+                SELECT login, nom, prenom, ville, role
+                FROM utilisateurs
+                WHERE ville = ?
+                ORDER BY login
+            """, (ville_visible,))
         
         resultats = curseur.fetchall()
         connexion.close()
