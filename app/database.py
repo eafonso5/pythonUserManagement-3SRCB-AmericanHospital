@@ -107,11 +107,6 @@ class DatabaseManager:
             connexion.close()
             return True
         
-        except sqlite3.IntegrityError:
-            # Se produit en cas de login déjà existant (contrainte UNIQUE)
-            print(f"Erreur : Le login '{user.Login}' existe déjà.")
-            return False
-        
         except Exception as e:
             # Capture d'éventuelles erreurs SQLite
             print(f"Erreur lors de l'ajout : {e}")

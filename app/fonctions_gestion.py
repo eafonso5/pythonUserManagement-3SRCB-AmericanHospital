@@ -75,9 +75,7 @@ def creer_utilisateur(db, user_connecte):
     # Si un seul rôle possible, attribution automatique
     if len(roles_attribuables) == 1:
         role = roles_attribuables[0]
-        print("\nRôles disponibles :")
-        print(f"1. {role}")
-        print(f"\nAucun choix nécessaire. Rôle automatiquement attribué : {role}")
+        print(f"\nRôle automatiquement attribué : {role}")
     
     # Sinon, affichage et choix manuel du rôle
     else:
@@ -101,26 +99,40 @@ def creer_utilisateur(db, user_connecte):
                 break
             else:
                 print("Erreur : Numéro de rôle invalide.")
-                
-    # Affichage des villes disponibles
-    print("\nVilles disponibles :")
-    for i, ville in enumerate(VILLES_DISPONIBLES, 1):
-        print(f"{i}. {ville}")
-    
-    # Sélection de la ville
-    choix_ville = input("\nChoisissez une ville (numéro) : ").strip()
-    try:
-        index_ville = int(choix_ville) - 1
 
-        # Vérification de la validité de l’indice
-        if 0 <= index_ville < len(VILLES_DISPONIBLES):
-            ville = VILLES_DISPONIBLES[index_ville]
-        else:
-            print("Erreur : Numéro de ville invalide.")
+    # Récupération de la liste des villes selon le rôle
+    if est_superadmin(user_connecte):
+        villes_a_afficher = VILLES_DISPONIBLES
+    elif est_admin(user_connecte):
+        villes_a_afficher = user_connecte.Ville 
+        villes_a_afficher = [villes_a_afficher]       
+        
+    # Les villes attribuables sont les mêmes que celles affichées
+    villes_attribuables = villes_a_afficher
+
+    # Si une seule ville possible, attribution automatique
+    if len(villes_attribuables) == 1:
+        ville = villes_attribuables[0]
+        print(f"\nVille automatiquement attribuée : {ville}")
+
+    # Sinon, choix manuel de la ville
+    else:
+    # Affichage numéroté des villes
+        for i, ville in enumerate(villes_a_afficher, start=1):
+            print(f"{i}. {ville}")   
+        choix_ville = input("\nChoisissez une ville (numéro) : ").strip()
+        try:
+            index_ville = int(choix_ville) - 1
+
+            # Vérification de la validité de l’indice
+            if 0 <= index_ville < len(VILLES_DISPONIBLES):
+                ville = VILLES_DISPONIBLES[index_ville]
+            else:
+                print("Erreur : Numéro de ville invalide.")
+                return
+        except ValueError:
+            print("Erreur : Veuillez entrer un numéro valide.")
             return
-    except ValueError:
-        print("Erreur : Veuillez entrer un numéro valide.")
-        return
 
     # Création de l’objet User
     user = User(nom, prenom, ville, role)
