@@ -399,17 +399,18 @@ def modifier_utilisateur(db, user_connecte):
 
             try:
                 index_role = int(choix_role) - 1
-
+                # Vérification des permissions
                 if est_superadmin(user_connecte) and 0 <= index_role < 2:
                     role = ROLES_DISPONIBLES[index_role]
-
+                # L'admin ne peut attribuer que le rôle User
                 elif est_admin(user_connecte) and index_role == 0:
                     role = ROLES_DISPONIBLES[0]
-
+                
+                # Erreur sur le rôle
                 elif index_role < 0 or (not est_entier(choix_role)):
                     print("Erreur : Numéro de rôle invalide.")
                     return
-                
+                # Permissions insuffisantes
                 else:
                     print("Erreur : Vous n'avez pas les permissions pour attribuer ce rôle.")
                     return
