@@ -117,7 +117,7 @@ def creer_utilisateur(db, user_connecte):
 
     # Sinon, choix manuel de la ville
     else:
-    # Affichage numéroté des villes
+        # Affichage numéroté des villes
         for i, ville in enumerate(villes_a_afficher, start=1):
             print(f"{i}. {ville}")   
         choix_ville = input("\nChoisissez une ville (numéro) : ").strip()
@@ -132,6 +132,14 @@ def creer_utilisateur(db, user_connecte):
                 return
         except ValueError:
             print("Erreur : Veuillez entrer un numéro valide.")
+            return
+
+    # CONTROLE : Un seul Admin/Super Admin par ville
+    if role in ("Admin", "Super Admin"):
+        existe = db.existe_admin_ou_superadmin_dans_ville(ville)
+        if existe:
+            print(f"\nERREUR : La ville '{ville}' possède déjà un {existe['role']} ({existe['login']}).")
+            print("Impossible de créer un second Admin/Super Admin pour cette ville.")
             return
 
     # Création de l’objet User

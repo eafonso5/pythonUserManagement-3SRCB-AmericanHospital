@@ -41,6 +41,12 @@ class DatabaseManager:
             )
         """)
         
+        curseur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS unique_admin_superadmin_ville
+            ON utilisateurs(ville)
+            WHERE role IN ('Admin', 'Super Admin')
+        """)
+        
         connexion.commit()
         connexion.close()
     
@@ -107,9 +113,22 @@ class DatabaseManager:
             connexion.close()
             return True
         
-        except Exception as e:
+        except sqlite3.IntegrityError as erreur:
+            # Erreur si deux Admin/Super Admin sur la même ville
+            message = str(erreur)
+            if "unique_admin_superadmin_ville" in message:
+                print(
+                    f"Erreur : il existe déjà un Admin ou Super Admin pour la ville '{user.Ville}'.\n"
+                    "La création de ce compte avec ce rôle est interdite.")
+            else:
+                print(f"Erreur d'intégrité (unicité) : {erreur}")
+            return False
+           
+            
+        
+        except Exception as erreur:
             # Capture d'éventuelles erreurs SQLite
-            print(f"Erreur lors de l'ajout : {e}")
+            print(f"Erreur lors de l'ajout : {erreur}")
             return False
     
     def rechercher_par_login(self, login):
@@ -293,6 +312,26 @@ class DatabaseManager:
 
         connexion.commit()
         connexion.close()
+
+    def existe_admin_ou_superadmin_dans_ville(self, ville):
+        connexion = self.get_connexion()
+        curseur = connexion.cursor()
+
+        curseur.execute("""
+            SELECT login, role 
+            FROM utilisateurs
+            WHERE ville = ?
+            AND role IN ('Admin', 'Super Admin')
+            LIMIT 1
+        """, (ville,))
+
+        row = curseur.fetchone()
+        connexion.close()
+
+        if row:
+            return {"login": row[0], "role": row[1]}
+
+        return None
 
     def verifier_bloquage_utilisateur(self, login):
         """Vérifie si un compte est bloqué.
