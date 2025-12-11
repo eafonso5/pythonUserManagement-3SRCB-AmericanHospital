@@ -41,6 +41,13 @@ class DatabaseManager:
             )
         """)
         
+        # Garantit qu'il ne peut y avoir qu'un Admin ou Super Admin par ville
+        curseur.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS unique_admin_superadmin_ville
+            ON utilisateurs(ville)
+            WHERE role IN ('Admin', 'Super Admin')
+        """)
+        
         connexion.commit()
         connexion.close()
     
@@ -107,29 +114,52 @@ class DatabaseManager:
             connexion.close()
             return True
         
-        except sqlite3.IntegrityError:
-            # Se produit en cas de login déjà existant (contrainte UNIQUE)
-            print(f"Erreur : Le login '{user.Login}' existe déjà.")
+        except sqlite3.IntegrityError as erreur:
+            """Gestion spécifique des erreurs d'intégrité."""
+            # Erreur si deux Admin/Super Admin sur la même ville ou login déjà existant
+            message = str(erreur)
+            if "unique_admin_superadmin_ville" in message:
+                # Violation de la contrainte d'unicité sur (ville, rôle Admin/Super Admin)
+                print(
+                    f"Erreur : il existe déjà un Admin ou Super Admin pour la ville '{user.Ville}'.\n"
+                    "La création de ce compte avec ce rôle est interdite.")
+            else:
+                # Autre violation d'intégrité (par exemple login dupliqué)
+                print(f"Erreur d'intégrité : {erreur}")
             return False
-        
-        except Exception as e:
-            # Capture d'éventuelles erreurs SQLite
-            print(f"Erreur lors de l'ajout : {e}")
+           
+        except Exception as erreur:
+            """Gestion générique des autres erreurs lors de l'insertion."""
+            # Capture d'éventuelles erreurs SQLite ou autres exceptions
+            print(f"Erreur lors de l'ajout : {erreur}")
             return False
     
-    def rechercher_par_login(self, login):
-        """Recherche un utilisateur dans la base grâce à son login."""
+    def rechercher_par_login(self, login, ville_visible=None):
+        """Recherche un utilisateur dans la base grâce à son login.
+           Si 'ville_visible' est renseigné, la recherche est limitée à cette ville
+           (utilisé pour restreindre la visibilité d'un admin à sa propre ville)."""
 
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
         # Sélection de toutes les informations importantes du compte
-        curseur.execute("""
-            SELECT login, nom, prenom, ville, role,
-                   password_hash, password_expiry, account_locked_until
-            FROM utilisateurs
-            WHERE login = ?
-        """, (login,))
+        if ville_visible is None:
+            # Recherche globale par login (Super Admin)
+            curseur.execute("""
+                SELECT login, nom, prenom, ville, role,
+                    password_hash, password_expiry, account_locked_until
+                FROM utilisateurs
+                WHERE login = ?
+            """, (login,))          
+        
+        else:
+            # L'admin ne voit que les utilisateurs de sa ville
+            curseur.execute("""
+                SELECT login, nom, prenom, ville, role,
+                    password_hash, password_expiry, account_locked_until
+                FROM utilisateurs
+                WHERE login = ? AND ville = ?
+            """, (login, ville_visible))
         
         resultat = curseur.fetchone()
         connexion.close()
@@ -151,18 +181,30 @@ class DatabaseManager:
         # Aucun utilisateur trouvé
         return None
     
-    def rechercher_par_nom_prenom(self, nom, prenom):
-        """Recherche un utilisateur à partir d'un nom et d'un prénom."""
+    def rechercher_par_nom_prenom(self, nom, prenom, ville_visible=None):
+        """Recherche un utilisateur à partir d'un nom et d'un prénom.
+           Si 'ville_visible' est renseigné, limite la recherche à cette ville."""
 
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
-        curseur.execute("""
-            SELECT login, nom, prenom, ville, role,
-                   password_hash, password_expiry, account_locked_until
-            FROM utilisateurs
-            WHERE nom = ? AND prenom = ?
-        """, (nom, prenom))
+        if ville_visible is None:
+            # Recherche globale sur nom + prénom
+            curseur.execute("""
+                SELECT login, nom, prenom, ville, role,
+                    password_hash, password_expiry, account_locked_until
+                FROM utilisateurs
+                WHERE nom = ? AND prenom = ?
+            """, (nom, prenom))
+        
+        else:
+            # Recherche restreinte à une ville (cas d'un admin)
+            curseur.execute("""
+                SELECT login, nom, prenom, ville, role,
+                    password_hash, password_expiry, account_locked_until
+                FROM utilisateurs
+                WHERE nom = ? AND prenom = ? AND ville = ?
+            """, (nom, prenom, ville_visible))
         
         resultat = curseur.fetchone()
         connexion.close()
@@ -183,18 +225,29 @@ class DatabaseManager:
         
         return None
         
-    def lister_tous_utilisateurs(self):
-        """Retourne la liste des utilisateurs présents dans la base."""
+    def lister_tous_utilisateurs(self, ville_visible=None):
+        """Retourne la liste des utilisateurs présents dans la base.
+           Si 'ville_visible' est renseigné, ne retourne que les utilisateurs de cette ville."""
 
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
         # Sélection basique des champs nécessaires à l'affichage
-        curseur.execute("""
-            SELECT login, nom, prenom, ville, role
-            FROM utilisateurs
-            ORDER BY login
-        """)
+        # Super Admin : pas de filtre sur la ville
+        if ville_visible is None:
+            curseur.execute("""
+                SELECT login, nom, prenom, ville, role
+                FROM utilisateurs
+                ORDER BY login
+            """)
+        # Admin ou filtre manuel : limitation à la ville spécifiée
+        else:
+            curseur.execute("""
+                SELECT login, nom, prenom, ville, role
+                FROM utilisateurs
+                WHERE ville = ?
+                ORDER BY login
+            """, (ville_visible,))
         
         resultats = curseur.fetchall()
         connexion.close()
@@ -216,7 +269,8 @@ class DatabaseManager:
     
     def modifier_utilisateur(self, login, nouveau_nom=None, nouveau_prenom=None, 
                             nouvelle_ville=None, nouveau_role=None, nouveau_hash=None, nouvelle_expiration=None):
-        """Met à jour un ou plusieurs champs d'un utilisateur."""
+        """Met à jour un ou plusieurs champs d'un utilisateur.
+           Les paramètres non fournis restent inchangés."""
 
         connexion = self.get_connexion()
         curseur = connexion.cursor()
@@ -253,7 +307,7 @@ class DatabaseManager:
         if not champs_a_modifier:
             return False
         
-        # Ajout du login en fin de paramètres
+        # Ajout du login en fin de paramètres (clause WHERE)
         valeurs.append(login)
         
         # Construction finale de la requête SQL
@@ -275,12 +329,14 @@ class DatabaseManager:
         connexion = self.get_connexion()
         curseur = connexion.cursor()
         
+        # Suppression du compte correspondant au login
         curseur.execute("DELETE FROM utilisateurs WHERE login = ?", (login,))
         
         connexion.commit()
         lignes_supprimees = curseur.rowcount
         connexion.close()
         
+        # True si au moins une ligne supprimée (login existant)
         return lignes_supprimees > 0
     
     def bloquer_utilisateur(self, login):
@@ -289,7 +345,7 @@ class DatabaseManager:
         connexion = self.get_connexion()
         curseur = connexion.cursor()
 
-        # Mise à jour du champ de verrouillage avec une date future
+        # Mise à jour du champ de verrouillage avec une date future (verrouillage temporaire)
         curseur.execute("""
             UPDATE utilisateurs
             SET account_locked_until = datetime('now', '+1 minutes')
@@ -298,6 +354,29 @@ class DatabaseManager:
 
         connexion.commit()
         connexion.close()
+
+    def existe_admin_ou_superadmin_dans_ville(self, ville):
+        """Vérifie s'il existe déjà un Admin ou Super Admin dans une ville donnée.
+           Retourne un dict {login, role} si trouvé, sinon None."""
+
+        connexion = self.get_connexion()
+        curseur = connexion.cursor()
+
+        curseur.execute("""
+            SELECT login, role 
+            FROM utilisateurs
+            WHERE ville = ?
+            AND role IN ('Admin', 'Super Admin')
+            LIMIT 1
+        """, (ville,))
+
+        row = curseur.fetchone()
+        connexion.close()
+
+        if row:
+            return {"login": row[0], "role": row[1]}
+
+        return None
 
     def verifier_bloquage_utilisateur(self, login):
         """Vérifie si un compte est bloqué.
@@ -320,7 +399,7 @@ class DatabaseManager:
         if resultats is None:
             return True
         
-        # Conversion de la chaîne SQL en datetime Python
+        # Conversion de la chaîne SQL en datetime Python (UTC)
         verrou_until = datetime.strptime(resultats[0], "%Y-%m-%d %H:%M:%S")
         verrou_until = verrou_until.replace(tzinfo=timezone.utc)
         

@@ -75,9 +75,7 @@ def creer_utilisateur(db, user_connecte):
     # Si un seul rôle possible, attribution automatique
     if len(roles_attribuables) == 1:
         role = roles_attribuables[0]
-        print("\nRôles disponibles :")
-        print(f"1. {role}")
-        print(f"\nAucun choix nécessaire. Rôle automatiquement attribué : {role}")
+        print(f"\nRôle automatiquement attribué : {role}")
     
     # Sinon, affichage et choix manuel du rôle
     else:
@@ -101,26 +99,47 @@ def creer_utilisateur(db, user_connecte):
                 break
             else:
                 print("Erreur : Numéro de rôle invalide.")
-                
-    # Affichage des villes disponibles
-    print("\nVilles disponibles :")
-    for i, ville in enumerate(VILLES_DISPONIBLES, 1):
-        print(f"{i}. {ville}")
-    
-    # Sélection de la ville
-    choix_ville = input("\nChoisissez une ville (numéro) : ").strip()
-    try:
-        index_ville = int(choix_ville) - 1
 
-        # Vérification de la validité de l’indice
-        if 0 <= index_ville < len(VILLES_DISPONIBLES):
-            ville = VILLES_DISPONIBLES[index_ville]
-        else:
-            print("Erreur : Numéro de ville invalide.")
+    # Récupération de la liste des villes selon le rôle
+    if est_superadmin(user_connecte):
+        villes_a_afficher = VILLES_DISPONIBLES
+    elif est_admin(user_connecte):
+        villes_a_afficher = [user_connecte.Ville]
+
+    # Les villes attribuables sont les mêmes que celles affichées
+    villes_attribuables = villes_a_afficher
+
+    # Si une seule ville possible, attribution automatique
+    if len(villes_attribuables) == 1:
+        ville = villes_attribuables[0]
+        print(f"\nVille automatiquement attribuée : {ville}")
+
+    # Sinon, choix manuel de la ville
+    else:
+        # Affichage numéroté des villes
+        for i, ville in enumerate(villes_a_afficher, start=1):
+            print(f"{i}. {ville}")   
+        choix_ville = input("\nChoisissez une ville (numéro) : ").strip()
+        try:
+            index_ville = int(choix_ville) - 1
+
+            # Vérification de la validité de l’indice
+            if 0 <= index_ville < len(VILLES_DISPONIBLES):
+                ville = VILLES_DISPONIBLES[index_ville]
+            else:
+                print("Erreur : Numéro de ville invalide.")
+                return
+        except ValueError:
+            print("Erreur : Veuillez entrer un numéro valide.")
             return
-    except ValueError:
-        print("Erreur : Veuillez entrer un numéro valide.")
-        return
+
+    # CONTROLE : Un seul Admin/Super Admin par ville
+    if role in ("Admin", "Super Admin"):
+        existe = db.existe_admin_ou_superadmin_dans_ville(ville)
+        if existe:
+            print(f"\nERREUR : La ville '{ville}' possède déjà un {existe['role']} ({existe['login']}).")
+            print("Impossible de créer un second Admin/Super Admin pour cette ville.")
+            return
 
     # Création de l’objet User
     user = User(nom, prenom, ville, role)
@@ -161,16 +180,58 @@ def consulter_profil(user_connecte):
     user_connecte.Afficher_User()
 
 
-def consulter_liste_utilisateurs(db):
-    """Affiche la liste complète des utilisateurs stockés en base."""
+def consulter_liste_utilisateurs(db, user_connecte):
+    """Affiche la liste des utilisateurs, avec filtrage avancé pour le Super Admin."""
 
     print("\n=== LISTE DES UTILISATEURS ===")
+
+    # Le Super Admin peut choisir d'afficher toutes les villes ou une ville spécifique
+    if est_superadmin(user_connecte):
+
+        print("\nOptions d'affichage :")
+        print("1. Afficher TOUTES les villes")
+        print("2. Filtrer par une ville spécifique")
+        
+        choix = input("Votre choix : ").strip()
+
+        # Option 1 : toutes les villes
+        if choix == "1":
+            liste_users = db.lister_tous_utilisateurs()
+        
+        # Option 2 : filtrer par ville 
+        elif choix == "2":
+            print("\nVilles disponibles :")
+            for i, ville in enumerate(VILLES_DISPONIBLES, start=1):
+                print(f"{i}. {ville}")
+
+            choix_ville = input("\nChoisissez une ville (numéro) : ").strip()
+
+            try:
+                index = int(choix_ville) - 1
+
+                if 0 <= index < len(VILLES_DISPONIBLES):
+                    ville_cible = VILLES_DISPONIBLES[index]
+                    liste_users = db.lister_tous_utilisateurs(ville_visible=ville_cible)
+                else:
+                    print("Erreur : numéro de ville invalide.")
+                    return
+
+            except ValueError:
+                print("Erreur : veuillez entrer un numéro valide.")
+                return
+        
+        # Choix invalide
+        else:
+            print("Erreur : choix invalide.")
+            return
     
-    liste_users = db.lister_tous_utilisateurs()
-    
-    # Vérification de la présence d’utilisateurs
+    # l'admin classique ne peut voir que sa propre ville
+    else:
+        liste_users = db.lister_tous_utilisateurs(ville_filter=user_connecte.Ville)
+
+    # Vérification des résultats
     if not liste_users:
-        print("Aucun utilisateur enregistré.")
+        print("\nAucun utilisateur trouvé pour ce filtre.")
         return
     
     print(f"\nNombre total d'utilisateurs : {len(liste_users)}\n")
@@ -178,15 +239,14 @@ def consulter_liste_utilisateurs(db):
     print(f"{'Login':<15} | {'Nom complet':<25} | {'Rôle':<15} | {'Ville':<15}")
     print("-" * 80)
     
-    # Affichage formaté des utilisateurs
+    # Affichage formaté
     for user in liste_users:
         nom_complet = f"{user.Prenom} {user.Nom}"
         print(f"{user.Login:<15} | {nom_complet:<25} | {user.Role:<15} | {user.Ville:<15}")
     
     print("-" * 80)
 
-
-def recherche_generale(db, recherche):
+def recherche_generale(db, recherche, user_connecte):
     """
     Effectue une recherche dans plusieurs colonnes :
     login, nom, prénom, ville, rôle.
@@ -196,19 +256,33 @@ def recherche_generale(db, recherche):
     connexion = db.get_connexion()
     curseur = connexion.cursor()
 
-    # Utilisation d’un LIKE SQL pour rechercher partiellement la valeur
     pattern = f"%{recherche}%"
 
-    curseur.execute("""
-        SELECT login, nom, prenom, ville, role, password_expiry
-        FROM utilisateurs
-        WHERE login  LIKE ?
-            OR nom    LIKE ?
-            OR prenom LIKE ?
-            OR ville  LIKE ?
-            OR role   LIKE ?
-    """, (pattern, pattern, pattern, pattern, pattern))
+    # Super Admin : pas de filtrage sur la ville
+    if est_superadmin(user_connecte):
+        curseur.execute("""
+            SELECT login, nom, prenom, ville, role, password_expiry
+            FROM utilisateurs
+            WHERE login  LIKE ?
+               OR nom    LIKE ?
+               OR prenom LIKE ?
+               OR ville  LIKE ?
+               OR role   LIKE ?
+        """, (pattern, pattern, pattern, pattern, pattern))
 
+    # Admin : filtrage sur sa ville
+    else:
+        curseur.execute("""
+            SELECT login, nom, prenom, ville, role, password_expiry
+            FROM utilisateurs
+            WHERE (login  LIKE ?
+               OR nom    LIKE ?
+               OR prenom LIKE ?
+               OR ville  LIKE ?
+               OR role   LIKE ?)
+              AND ville = ?
+        """, (pattern, pattern, pattern, pattern, pattern, user_connecte.Ville))
+        
     resultats = curseur.fetchall()
     connexion.close()
 
@@ -229,7 +303,7 @@ def recherche_generale(db, recherche):
     return utilisateurs
 
 
-def rechercher_utilisateur(db):
+def rechercher_utilisateur(db, user_connecte):
     """Recherche un ou plusieurs utilisateurs selon une valeur textuelle saisie."""
 
     print("\n=== RECHERCHE D'UN UTILISATEUR ===")
@@ -242,7 +316,8 @@ def rechercher_utilisateur(db):
         return
 
     # Appel de la recherche globale
-    utilisateurs_trouves = recherche_generale(db, recherche)
+    
+    utilisateurs_trouves = recherche_generale(db, recherche, user_connecte)
 
     # Gestion d’absence de résultat
     if not utilisateurs_trouves:
@@ -324,17 +399,18 @@ def modifier_utilisateur(db, user_connecte):
 
             try:
                 index_role = int(choix_role) - 1
-
+                # Vérification des permissions
                 if est_superadmin(user_connecte) and 0 <= index_role < 2:
                     role = ROLES_DISPONIBLES[index_role]
-
+                # L'admin ne peut attribuer que le rôle User
                 elif est_admin(user_connecte) and index_role == 0:
                     role = ROLES_DISPONIBLES[0]
-
+                
+                # Erreur sur le rôle
                 elif index_role < 0 or (not est_entier(choix_role)):
                     print("Erreur : Numéro de rôle invalide.")
                     return
-                
+                # Permissions insuffisantes
                 else:
                     print("Erreur : Vous n'avez pas les permissions pour attribuer ce rôle.")
                     return
