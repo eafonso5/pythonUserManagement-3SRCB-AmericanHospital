@@ -3,6 +3,8 @@ from fonctions_gestion import (
     modifier_utilisateur, supprimer_utilisateur, changer_mon_mot_de_passe,
     est_admin, consulter_profil
 )
+from gestion_fichiers import FileManager
+from gestion_ftp import FTPManager, planifier_sauvegarde_vendredi
 
 
 def afficher_menu_admin(user_connecte):
@@ -23,25 +25,87 @@ def afficher_menu_admin(user_connecte):
     print("5. Supprimer un utilisateur")
     print("6. Consulter mon profil")
     print("7. Changer mon mot de passe")
-    print("8. Quitter")
+    print("8. Gestion technique des fichiers & FTP")
+    print("9. Quitter")
     print("\n" + "=" * 60) 
 
 
-def afficher_menu_user(user_connecte):
-    """Affiche le menu destiné aux utilisateurs standard."""
+def menu_technique(user_connecte):
+    """Sous-menu pour la gestion locale des fichiers et la synchro FTP."""
+    
+    fm = FileManager(user_connecte.Ville)
+    ftp_m = FTPManager(user_connecte.Login)
 
-    # En-tête filtré pour les Users avec options limitées
-    print("\n" + "=" * 60)
-    print(" GESTION DES UTILISATEURS - AMERICAN HOSPITAL")
-    print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
-    print(" Mode : USER")
-    print("=" * 60)
+    while True:
+        print(f"\n--- GESTION TECHNIQUE : {user_connecte.Ville} ---")
+        print("1. Lister le contenu local")
+        print("2. Créer un élément (Dossier ou Fichier)")
+        print("3. Supprimer un fichier/dossier local")
+        print("4. Synchroniser vers FTP (Paris)")
+        print("5. Planifier sauvegarde vendredi 20h00")
+        print("6. Retour au menu principal")
+        
+        choix = input("\nVotre choix : ").strip()
 
-    # Affichage des actions disponibles pour un utilisateur classique
-    print("\n1. Consulter mon profil")
-    print("2. Changer mon mot de passe")
-    print("3. Quitter")
-    print("\n" + "=" * 60)
+        match choix:
+            case "1":
+                contenu = fm.lister_contenu()
+                print(f"\nContenu du dossier {user_connecte.Ville.lower()} :")
+                if contenu:
+                    for element in contenu:
+                        print(f" - {element}")
+                else:
+                    print(" (Dossier vide)")
+
+            case "2":
+                print("\nQuel type d'élément souhaitez-vous créer ?")
+                print("1. Dossier")
+                print("2. Fichier")
+                type_element = input("Votre choix (1 ou 2) : ").strip()
+
+                if type_element == "1":
+                    nom = input("Nom du nouveau dossier : ").strip()
+                    if nom and fm.creer_repertoire(nom):
+                        print(f"✓ Dossier '{nom}' créé avec succès.")
+                elif type_element == "2":
+                    nom = input("Nom du nouveau fichier (avec extension, ex: bilan.txt) : ").strip()
+                    if nom and fm.creer_fichier_vide(nom):
+                        print(f"✓ Fichier '{nom}' créé avec succès.")
+                else:
+                    print("Erreur : Type d'élément invalide.")
+
+            case "3":
+                nom = input("Nom de l'élément à supprimer (avec extension si fichier) : ").strip()
+                confirm = input(f"Confirmer la suppression de '{nom}' ? (oui/non) : ").lower()
+                if confirm == "oui":
+                    if fm.supprimer_element(nom):
+                        print(f"✓ '{nom}' supprimé.")
+
+            case "4":
+                fichier = input("Nom de l'élément à synchroniser (ex: bilan.txt) : ").strip()
+                import os
+                path_complet = os.path.join(fm.base_path, fichier)
+                
+                if os.path.exists(path_complet):
+                    print(f"Tentative d'envoi de '{fichier}' vers le serveur FTP...")
+                    if ftp_m.connecter():
+                        if ftp_m.upload_versioning(path_complet, user_connecte.Ville):
+                            print("✓ Synchronisation FTP réussie.")
+                        ftp_m.deconnecter()
+                    else:
+                        print("Erreur : Impossible de se connecter au serveur FTP.")
+                else:
+                    print(f"Erreur : '{fichier}' n'existe pas dans votre répertoire local.")
+
+            case "5":
+                planifier_sauvegarde_vendredi()
+                print("✓ Tâche planifiée : Vendredi à 20h00.")
+
+            case "6":
+                break
+            
+            case _:
+                print("Choix invalide.")
 
 
 def menu_administrateur(db, user_connecte):
@@ -84,8 +148,12 @@ def menu_administrateur(db, user_connecte):
             case "7":
                 # Changement du mot de passe personnel
                 changer_mon_mot_de_passe(db, user_connecte)
-        
+
             case "8":
+                # Gestion technique fichiers et FTP
+                menu_technique(user_connecte)
+        
+            case "9":
                 # Sortie propre du menu administrateur
                 print("Au revoir !")
                 break

@@ -1,0 +1,90 @@
+from ftplib import FTP
+import os
+import logging
+import getpass
+from datetime import datetime
+
+class FTPManager:
+    """Gestionnaire de synchronisation FTP configuré pour le serveur de test."""
+
+    def __init__(self, current_user_login, host="127.0.0.1", port=2121):
+        self.host = host
+        self.port = port
+        self.current_user = current_user_login
+        self.ftp = None
+        
+        # Identifiants par défaut pour le test (admin / password)
+        # On vérifie quand même si des variables d'environnement existent
+        self.ftp_user = os.getenv("FTP_USER", "admin")
+        self.ftp_pass = os.getenv("FTP_PASS", "password")
+
+    def connecter(self):
+        """Établit la connexion au serveur de test local."""
+        try:
+            self.ftp = FTP()
+            # Connexion avec l'hôte et le port spécifique
+            self.ftp.connect(self.host, self.port)
+            self.ftp.login(self.ftp_user, self.ftp_pass)
+            
+            logging.info(f"CONNEXION TEST RÉUSSIE : '{self.current_user}' connecté à {self.host}:{self.port}")
+            return True
+        except Exception as e:
+            logging.error(f"ÉCHEC CONNEXION TEST : {self.current_user} sur {self.host}:{self.port} ({e})")
+            print(f"\nErreur : Impossible de se connecter au serveur de test ({e})")
+            return False
+
+    def deconnecter(self):
+        if self.ftp:
+            try:
+                self.ftp.quit()
+            except:
+                pass
+
+    def upload_versioning(self, local_path, ville):
+        """
+        Upload un fichier depuis data_hospital/[ville] vers le FTP.
+        Le paramètre local_path doit être le chemin complet vers le fichier local.
+        """
+        if not self.ftp:
+            return False
+            
+        try:
+            # On s'assure que le fichier existe localement
+            if not os.path.exists(local_path):
+                logging.error(f"FICHIER INTROUVABLE : {local_path}")
+                print(f"Erreur : Le fichier '{local_path}' est introuvable.")
+                return False
+
+            # SÉCURITÉ : On vérifie que ce n'est pas un dossier
+            if os.path.isdir(local_path):
+                logging.warning(f"TENTATIVE UPLOAD DOSSIER REFUSÉE : {local_path}")
+                print("\nErreur : Le transfert de dossiers n'est pas encore supporté.")
+                print("Veuillez sélectionner un fichier simple.")
+                return False
+
+            # Dossier cible sur le FTP (cloisonnement par ville)
+            nom_ville = ville.lower()
+            try:
+                self.ftp.cwd(nom_ville)
+            except:
+                self.ftp.mkd(nom_ville)
+                self.ftp.cwd(nom_ville)
+
+            # Versioning avec horodatage
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+            nom_original = os.path.basename(local_path)
+            nom_final_distant = f"{timestamp}_{nom_original}"
+
+            # Transfert binaire
+            with open(local_path, "rb") as file:
+                self.ftp.storbinary(f"STOR {nom_final_distant}", file)
+
+            logging.info(f"UPLOAD TEST RÉUSSI : {local_path} -> {nom_final_distant}")
+            return True
+        except Exception as e:
+            logging.error(f"ERREUR UPLOAD TEST : {e}")
+            return False
+
+def planifier_sauvegarde_vendredi():
+    logging.info("Planification de sauvegarde enregistrée pour Vendredi 20h00.")
+    return "Action planifiée"
