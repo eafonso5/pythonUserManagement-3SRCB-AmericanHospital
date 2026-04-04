@@ -5,7 +5,7 @@ from pyftpdlib.servers import FTPServer
 # Configuration des utilisateurs du serveur de test
 authorizer = DummyAuthorizer()
 # On crée un utilisateur 'admin' avec le mdp 'password' qui a tous les droits (elradfmwMT)
-authorizer.add_user("admin", "password", "./data_hospital", perm="elradfmwMT")
+authorizer.add_user("admin", "password", "./ftp_server", perm="elradfmwMT")
 
 handler = FTPHandler
 handler.authorizer = authorizer
