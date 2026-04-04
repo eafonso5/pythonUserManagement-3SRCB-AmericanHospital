@@ -1,10 +1,18 @@
+import os
 from pyftpdlib.authorizers import DummyAuthorizer
 from pyftpdlib.handlers import FTPHandler
 from pyftpdlib.servers import FTPServer
 
+VILLES = ["paris", "marseille", "rennes", "grenoble"]
+
+# Création automatique des dossiers au démarrage
+for ville in VILLES:
+    chemin = os.path.join("ftp_server", ville)
+    os.makedirs(chemin, exist_ok=True)
+    print(f"Dossier prêt : {chemin}")
+
 # Configuration des utilisateurs du serveur de test
 authorizer = DummyAuthorizer()
-# On crée un utilisateur 'admin' avec le mdp 'password' qui a tous les droits (elradfmwMT)
 authorizer.add_user("admin", "password", "./ftp_server", perm="elradfmwMT")
 
 handler = FTPHandler
