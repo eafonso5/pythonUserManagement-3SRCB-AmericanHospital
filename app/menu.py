@@ -1,3 +1,6 @@
+import logging
+import os
+
 from fonctions_gestion import (
     creer_utilisateur, consulter_liste_utilisateurs, rechercher_utilisateur,
     modifier_utilisateur, supprimer_utilisateur, changer_mon_mot_de_passe,
@@ -10,14 +13,12 @@ from gestion_ftp import FTPManager, planifier_sauvegarde_vendredi
 def afficher_menu_admin(user_connecte):
     """Affiche le menu destiné aux administrateurs."""
 
-    # Affiche un en-tête indiquant le rôle et l'identité de l'utilisateur connecté
     print("\n" + "=" * 60)
     print(" GESTION DES UTILISATEURS - AMERICAN HOSPITAL")
     print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
     print(" Mode : ADMINISTRATEUR")
     print("=" * 60)
 
-    # Affichage de toutes les options accessibles aux administrateurs
     print("\n1. Créer un nouvel utilisateur")
     print("2. Consulter la liste des utilisateurs")
     print("3. Rechercher un utilisateur")
@@ -25,26 +26,44 @@ def afficher_menu_admin(user_connecte):
     print("5. Supprimer un utilisateur")
     print("6. Consulter mon profil")
     print("7. Changer mon mot de passe")
-    print("8. Gestion technique des fichiers & FTP")
-    print("9. Quitter")
-    print("\n" + "=" * 60) 
+    print("8. Quitter vers le menu principal")
+    print("\n" + "=" * 60)
+
+
+def afficher_menu_user(user_connecte):
+    """Affiche le menu destiné aux utilisateurs standards."""
+
+    print("\n" + "=" * 60)
+    print(" GESTION DES UTILISATEURS - AMERICAN HOSPITAL")
+    print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
+    print(" Mode : UTILISATEUR")
+    print("=" * 60)
+
+    print("\n1. Consulter mon profil")
+    print("2. Changer mon mot de passe")
+    print("3. Quitter vers le menu principal")
+    print("\n" + "=" * 60)
 
 
 def menu_technique(user_connecte):
     """Sous-menu pour la gestion locale des fichiers et la synchro FTP."""
-    
+
     fm = FileManager(user_connecte.Ville)
     ftp_m = FTPManager(user_connecte.Login)
 
     while True:
-        print(f"\n--- GESTION TECHNIQUE : {user_connecte.Ville} ---")
+        print(f"\n--- GESTION DES FICHIERS : {user_connecte.Ville} ---")
         print("1. Lister le contenu local")
         print("2. Créer un élément (Dossier ou Fichier)")
         print("3. Supprimer un fichier/dossier local")
-        print("4. Synchroniser vers FTP (Paris)")
-        print("5. Planifier sauvegarde vendredi 20h00")
-        print("6. Retour au menu principal")
-        
+        print("4. Déplacer / renommer un élément")
+        print("5. Copier un élément")
+        print("6. Synchroniser vers FTP (upload)")
+        print("7. Lister le contenu FTP")
+        print("8. Télécharger depuis FTP")
+        print("9. Planifier sauvegarde vendredi 20h00")
+        print("0. Retour au menu principal")
+
         choix = input("\nVotre choix : ").strip()
 
         match choix:
@@ -53,7 +72,8 @@ def menu_technique(user_connecte):
                 print(f"\nContenu du dossier {user_connecte.Ville.lower()} :")
                 if contenu:
                     for element in contenu:
-                        print(f" - {element}")
+                        prefixe = "[D]" if element["type"] == "dossier" else "[F]"
+                        print(f" {prefixe} {element['nom']}")
                 else:
                     print(" (Dossier vide)")
 
@@ -66,11 +86,11 @@ def menu_technique(user_connecte):
                 if type_element == "1":
                     nom = input("Nom du nouveau dossier : ").strip()
                     if nom and fm.creer_repertoire(nom):
-                        print(f"✓ Dossier '{nom}' créé avec succès.")
+                        print(f"Dossier '{nom}' créé avec succès.")
                 elif type_element == "2":
                     nom = input("Nom du nouveau fichier (avec extension, ex: bilan.txt) : ").strip()
                     if nom and fm.creer_fichier_vide(nom):
-                        print(f"✓ Fichier '{nom}' créé avec succès.")
+                        print(f"Fichier '{nom}' créé avec succès.")
                 else:
                     print("Erreur : Type d'élément invalide.")
 
@@ -79,87 +99,108 @@ def menu_technique(user_connecte):
                 confirm = input(f"Confirmer la suppression de '{nom}' ? (oui/non) : ").lower()
                 if confirm == "oui":
                     if fm.supprimer_element(nom):
-                        print(f"✓ '{nom}' supprimé.")
+                        print(f"'{nom}' supprimé.")
 
             case "4":
-                fichier = input("Nom de l'élément à synchroniser (ex: bilan.txt) : ").strip()
-                import os
+                source = input("Nom de l'élément source : ").strip()
+                destination = input("Nouveau nom / destination : ").strip()
+                if source and destination:
+                    if fm.deplacer_ou_renommer(source, destination):
+                        print(f"'{source}' déplacé/renommé vers '{destination}'.")
+
+            case "5":
+                source = input("Nom de l'élément à copier : ").strip()
+                destination = input("Nom de la copie : ").strip()
+                if source and destination:
+                    if fm.copier_element(source, destination):
+                        print(f"'{source}' copié vers '{destination}'.")
+
+            case "6":
+                fichier = input("Nom du fichier à envoyer vers le FTP (ex: bilan.txt) : ").strip()
                 path_complet = os.path.join(fm.base_path, fichier)
-                
+
                 if os.path.exists(path_complet):
-                    print(f"Tentative d'envoi de '{fichier}' vers le serveur FTP...")
+                    print(f"Envoi de '{fichier}' vers le serveur FTP...")
                     if ftp_m.connecter():
                         if ftp_m.upload_versioning(path_complet, user_connecte.Ville):
-                            print("✓ Synchronisation FTP réussie.")
+                            print("Synchronisation FTP réussie.")
                         ftp_m.deconnecter()
                     else:
                         print("Erreur : Impossible de se connecter au serveur FTP.")
                 else:
                     print(f"Erreur : '{fichier}' n'existe pas dans votre répertoire local.")
 
-            case "5":
-                planifier_sauvegarde_vendredi()
-                print("✓ Tâche planifiée : Vendredi à 20h00.")
+            case "7":
+                print(f"Récupération du contenu FTP pour {user_connecte.Ville}...")
+                if ftp_m.connecter():
+                    fichiers = ftp_m.lister_contenu_ftp(user_connecte.Ville)
+                    ftp_m.deconnecter()
+                    if fichiers:
+                        print(f"\nContenu FTP ({user_connecte.Ville}) :")
+                        for f in fichiers:
+                            print(f" - {f}")
+                    else:
+                        print(" (Dossier FTP vide ou introuvable)")
+                else:
+                    print("Erreur : Impossible de se connecter au serveur FTP.")
 
-            case "6":
+            case "8":
+                nom_fichier = input("Nom du fichier à télécharger depuis le FTP : ").strip()
+                if nom_fichier:
+                    dest = fm.base_path
+                    print(f"Téléchargement de '{nom_fichier}' vers {dest} ...")
+                    if ftp_m.connecter():
+                        if ftp_m.telecharger_fichier(nom_fichier, user_connecte.Ville, dest):
+                            print(f"'{nom_fichier}' téléchargé dans {dest}.")
+                        ftp_m.deconnecter()
+                    else:
+                        print("Erreur : Impossible de se connecter au serveur FTP.")
+
+            case "9":
+                planifier_sauvegarde_vendredi()
+                print("Tâche planifiée : Vendredi à 20h00.")
+
+            case "0":
                 break
-            
+
             case _:
                 print("Choix invalide.")
 
 
 def menu_administrateur(db, user_connecte):
-    """Point d'entrée du menu administrateur.
-       Boucle permettant d'exécuter les actions tant que l'utilisateur reste dans le menu."""
+    """Menu administrateur : gestion des utilisateurs."""
 
     while True:
-        # On affiche systématiquement le menu avant chaque choix
         afficher_menu_admin(user_connecte)
 
-        # Lecture du choix utilisateur
         choix = input("\nVotre choix : ").strip()
-        
-        # Gestion des actions via pattern matching (structure moderne Python)
+
         match choix:
             case "1":
-                # Création d'un nouvel utilisateur
                 creer_utilisateur(db, user_connecte)
-        
+
             case "2":
-                # Consultation de tous les comptes existants
                 consulter_liste_utilisateurs(db, user_connecte)
-        
+
             case "3":
-                # Recherche ciblée dans les utilisateurs
                 rechercher_utilisateur(db, user_connecte)
-        
+
             case "4":
-                # Modification d'un utilisateur existant
                 modifier_utilisateur(db, user_connecte)
-        
+
             case "5":
-                # Suppression d'un compte
                 supprimer_utilisateur(db, user_connecte)
-        
+
             case "6":
-                # Consultation des informations personnelles de l'administrateur
-                consulter_profil(user_connecte)        
-        
+                consulter_profil(user_connecte)
+
             case "7":
-                # Changement du mot de passe personnel
                 changer_mon_mot_de_passe(db, user_connecte)
 
             case "8":
-                # Gestion technique fichiers et FTP
-                menu_technique(user_connecte)
-        
-            case "9":
-                # Sortie propre du menu administrateur
-                print("Au revoir !")
                 break
-            
+
             case _:
-                # Gestion d’une saisie invalide
                 print("\nChoix invalide. Veuillez réessayer.")
 
 
@@ -167,38 +208,56 @@ def menu_utilisateur(db, user_connecte):
     """Menu réservé aux utilisateurs simples."""
 
     while True:
-        # Affiche l’interface dédiée aux Users
         afficher_menu_user(user_connecte)
 
-        # Récupération du choix
         choix = input("\nVotre choix : ").strip()
-        
+
         match choix:
             case "1":
-                # Affiche uniquement les informations du compte connecté
                 consulter_profil(user_connecte)
-        
+
             case "2":
-                # L'utilisateur peut modifier son propre mot de passe
                 changer_mon_mot_de_passe(db, user_connecte)
-            
+
             case "3":
-                # Quitte proprement le menu utilisateur
-                print("Au revoir !")
                 break
-            
+
             case _:
-                # Erreur de saisie
                 print("\nChoix invalide. Veuillez réessayer.")
 
 
 def menu_principal(db, user_connecte):
-    """Redirige l'utilisateur vers le menu adapté en fonction de son rôle."""
+    """Pré-menu principal permettant de naviguer entre les grandes sections."""
 
-    # Un admin ou super admin est envoyé vers le menu complet
-    if est_admin(user_connecte):
-        menu_administrateur(db, user_connecte)
+    while True:
+        print("\n" + "=" * 60)
+        print(" === AMERICAN HOSPITAL - Patient-First ===")
+        print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
+        print("=" * 60)
+        print("\n1. Gestion des Utilisateurs")
+        print("2. Gestion des Fichiers")
+        print("0. Quitter")
 
-    # Les utilisateurs standards sont envoyés vers le menu simplifié
-    else:
-        menu_utilisateur(db, user_connecte)
+        choix = input("\nVotre choix : ").strip()
+
+        match choix:
+            case "1":
+                logging.info(f"Navigation Gestion Utilisateurs par {user_connecte.Login}")
+                if est_admin(user_connecte):
+                    menu_administrateur(db, user_connecte)
+                else:
+                    menu_utilisateur(db, user_connecte)
+
+            case "2":
+                if est_admin(user_connecte):
+                    logging.info(f"Navigation Gestion Fichiers par {user_connecte.Login}")
+                    menu_technique(user_connecte)
+                else:
+                    print("\nAccès refusé : cette section est réservée aux administrateurs.")
+
+            case "0":
+                print("\nAu revoir !")
+                break
+
+            case _:
+                print("\nChoix invalide. Veuillez réessayer.")
