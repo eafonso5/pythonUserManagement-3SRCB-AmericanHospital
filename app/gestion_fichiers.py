@@ -23,7 +23,7 @@ class FileManager:
                 logger.error(f"Erreur initialisation dossier {ville}: {e}")
 
     def lister_contenu(self):
-        """Liste les fichiers et dossiers du site local."""
+        """Liste les fichiers et dossiers du site local (premier niveau)."""
         try:
             noms = os.listdir(self.base_path)
             contenu = []
@@ -35,6 +35,23 @@ class FileManager:
         except Exception as e:
             logger.error(f"Erreur lors du listage ({self.ville}): {e}")
             return None
+
+    def lister_arbre(self, sous_chemin="", prefixe=""):
+        """Liste récursivement le contenu sous forme d'arbre indenté."""
+        dossier = os.path.join(self.base_path, sous_chemin) if sous_chemin else self.base_path
+        lignes = []
+        try:
+            for nom in sorted(os.listdir(dossier)):
+                chemin = os.path.join(dossier, nom)
+                if os.path.isdir(chemin):
+                    lignes.append(f"{prefixe}[D] {nom}/")
+                    sous = os.path.join(sous_chemin, nom) if sous_chemin else nom
+                    lignes.extend(self.lister_arbre(sous, prefixe + "    "))
+                else:
+                    lignes.append(f"{prefixe}[F] {nom}")
+        except Exception as e:
+            logger.error(f"Erreur listing arbre ({dossier}): {e}")
+        return lignes
 
     def creer_repertoire(self, nom_dossier):
         """Crée un sous-dossier dans l'espace de la ville."""

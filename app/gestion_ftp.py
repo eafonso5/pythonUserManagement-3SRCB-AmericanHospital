@@ -43,50 +43,73 @@ class FTPManager:
             except:
                 pass
 
+    def _naviguer_vers(self, chemin_ftp):
+        """Navigue vers un chemin FTP absolu, crée les dossiers manquants."""
+        parties = [p for p in chemin_ftp.strip("/").split("/") if p]
+        self.ftp.cwd("/")
+        for partie in parties:
+            try:
+                self.ftp.cwd(partie)
+            except Exception:
+                self.ftp.mkd(partie)
+                self.ftp.cwd(partie)
+
     def upload_versioning(self, local_path, ville):
-        """
-        Upload un fichier depuis data_hospital/[ville] vers le FTP.
-        Le paramètre local_path doit être le chemin complet vers le fichier local.
-        """
+        """Upload un fichier ou un dossier vers le FTP avec versioning horodaté."""
         if not self.ftp:
             return False
-            
-        try:
-            # On s'assure que le fichier existe localement
-            if not os.path.exists(local_path):
-                logging.error(f"FICHIER INTROUVABLE : {local_path}")
-                print(f"Erreur : Le fichier '{local_path}' est introuvable.")
-                return False
-
-            # SÉCURITÉ : On vérifie que ce n'est pas un dossier
-            if os.path.isdir(local_path):
-                logging.warning(f"TENTATIVE UPLOAD DOSSIER REFUSÉE : {local_path}")
-                print("\nErreur : Le transfert de dossiers n'est pas encore supporté.")
-                print("Veuillez sélectionner un fichier simple.")
-                return False
-
-            # Dossier cible sur le FTP (cloisonnement par ville)
-            nom_ville = ville.lower()
-            try:
-                self.ftp.cwd(nom_ville)
-            except:
-                self.ftp.mkd(nom_ville)
-                self.ftp.cwd(nom_ville)
-
-            # Versioning avec horodatage
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-            nom_original = os.path.basename(local_path)
-            nom_final_distant = f"{timestamp}_{nom_original}"
-
-            # Transfert binaire
-            with open(local_path, "rb") as file:
-                self.ftp.storbinary(f"STOR {nom_final_distant}", file)
-
-            logging.info(f"UPLOAD TEST RÉUSSI : {local_path} -> {nom_final_distant}")
-            return True
-        except Exception as e:
-            logging.error(f"ERREUR UPLOAD TEST : {e}")
+        if not os.path.exists(local_path):
+            logging.error(f"INTROUVABLE : {local_path}")
+            print(f"Erreur : '{local_path}' est introuvable.")
             return False
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        nom_original = os.path.basename(local_path)
+        nom_versionne = f"{timestamp}_{nom_original}"
+        nom_ville = ville.lower()
+
+        try:
+            if os.path.isdir(local_path):
+                return self._upload_dossier(local_path, nom_ville, nom_versionne)
+            else:
+                self._naviguer_vers(nom_ville)
+                with open(local_path, "rb") as f:
+                    self.ftp.storbinary(f"STOR {nom_versionne}", f)
+                logging.info(f"UPLOAD FICHIER : {local_path} -> {nom_ville}/{nom_versionne}")
+                return True
+        except Exception as e:
+            logging.error(f"ERREUR UPLOAD : {e}")
+            return False
+
+    def _upload_dossier(self, local_path, nom_ville, nom_racine_ftp):
+        """Upload récursif d'un dossier vers le FTP."""
+        nb_ok = 0
+        for racine, sous_dossiers, fichiers in os.walk(local_path):
+            chemin_relatif = os.path.relpath(racine, local_path)
+            if chemin_relatif == ".":
+                ftp_courant = f"{nom_ville}/{nom_racine_ftp}"
+            else:
+                ftp_courant = f"{nom_ville}/{nom_racine_ftp}/{chemin_relatif.replace(os.sep, '/')}"
+
+            self._naviguer_vers(ftp_courant)
+
+            for d in sous_dossiers:
+                try:
+                    self.ftp.mkd(d)
+                except Exception:
+                    pass
+
+            for fichier in fichiers:
+                chemin_local = os.path.join(racine, fichier)
+                try:
+                    with open(chemin_local, "rb") as f:
+                        self.ftp.storbinary(f"STOR {fichier}", f)
+                    nb_ok += 1
+                except Exception as e:
+                    logging.error(f"Erreur upload {chemin_local}: {e}")
+
+        logging.info(f"UPLOAD DOSSIER : {local_path} -> {nom_ville}/{nom_racine_ftp} ({nb_ok} fichiers)")
+        return True
 
     def lister_contenu_ftp(self, ville):
         """Liste les fichiers présents dans le dossier de la ville sur le FTP."""
