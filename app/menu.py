@@ -7,7 +7,7 @@ from fonctions_gestion import (
     est_admin, consulter_profil
 )
 from gestion_fichiers import FileManager
-from gestion_ftp import FTPManager, planifier_sauvegarde_vendredi
+from gestion_ftp import FTPManager, sauvegarder_vers_ftp
 
 
 def afficher_menu_admin(user_connecte):
@@ -61,7 +61,7 @@ def menu_technique(user_connecte):
         print("6. Synchroniser vers FTP (upload)")
         print("7. Lister le contenu FTP")
         print("8. Télécharger depuis FTP")
-        print("9. Planifier sauvegarde vendredi 20h00")
+        print("9. Sauvegarder dossier local vers FTP")
         print("0. Retour au menu principal")
 
         choix = input("\nVotre choix : ").strip()
@@ -158,7 +158,7 @@ def menu_technique(user_connecte):
 
             case "9":
                 print("Sauvegarde en cours...")
-                nb_ok, total, prochain = planifier_sauvegarde_vendredi(user_connecte.Ville, user_connecte.Login)
+                nb_ok, total, prochain = sauvegarder_vers_ftp(user_connecte.Ville, user_connecte.Login)
                 if total == -1:
                     print("Erreur : impossible de se connecter au serveur FTP.")
                 else:

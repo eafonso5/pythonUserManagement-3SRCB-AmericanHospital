@@ -127,59 +127,43 @@ class FTPManager:
 def _prochaine_sauvegarde_vendredi():
     """Calcule le datetime du prochain vendredi à 20h00."""
     now = datetime.now()
-    # weekday() : 0=lundi, 4=vendredi
     jours_avant_vendredi = (4 - now.weekday()) % 7
     prochain = now.replace(hour=20, minute=0, second=0, microsecond=0) + timedelta(days=jours_avant_vendredi)
-    # Si on est déjà vendredi après 20h, prendre le vendredi suivant
     if prochain <= now:
         prochain += timedelta(weeks=1)
     return prochain
 
 
-def _effectuer_sauvegarde(ville, user_login):
-    """Uploade tous les fichiers locaux de la ville vers le FTP."""
+def sauvegarder_vers_ftp(ville, user_login):
+    """Uploade tous les fichiers locaux de la ville vers le FTP,
+    puis planifie automatiquement la prochaine exécution le vendredi à 20h00."""
     logging.info(f"SAUVEGARDE DÉMARRÉE : {ville}")
     base_path = os.path.join("data_hospital", ville.lower())
 
+    nb_ok, total = 0, 0
     if not os.path.exists(base_path):
         logging.warning(f"SAUVEGARDE : dossier local introuvable ({base_path})")
-        return 0, 0
+        total = -1
+    else:
+        ftp = FTPManager(user_login)
+        if not ftp.connecter():
+            logging.error("SAUVEGARDE ÉCHOUÉE : impossible de se connecter au FTP")
+            total = -1
+        else:
+            fichiers = [f for f in os.listdir(base_path) if os.path.isfile(os.path.join(base_path, f))]
+            total = len(fichiers)
+            for fichier in fichiers:
+                if ftp.upload_versioning(os.path.join(base_path, fichier), ville):
+                    nb_ok += 1
+            ftp.deconnecter()
+            logging.info(f"SAUVEGARDE TERMINÉE : {nb_ok}/{total} fichier(s) ({ville})")
 
-    ftp = FTPManager(user_login)
-    if not ftp.connecter():
-        logging.error("SAUVEGARDE ÉCHOUÉE : impossible de se connecter au FTP")
-        return 0, -1
-
-    fichiers = [f for f in os.listdir(base_path) if os.path.isfile(os.path.join(base_path, f))]
-    nb_ok = 0
-    for fichier in fichiers:
-        if ftp.upload_versioning(os.path.join(base_path, fichier), ville):
-            nb_ok += 1
-
-    ftp.deconnecter()
-    logging.info(f"SAUVEGARDE TERMINÉE : {nb_ok}/{len(fichiers)} fichier(s) ({ville})")
-    return nb_ok, len(fichiers)
-
-
-def _tache_automatique(ville, user_login):
-    """Tâche exécutée automatiquement chaque vendredi : sauvegarde + replanification."""
-    _effectuer_sauvegarde(ville, user_login)
-    _planifier_prochaine(ville, user_login)
-
-
-def _planifier_prochaine(ville, user_login):
-    """Planifie uniquement la prochaine occurrence (sans exécution immédiate)."""
+    # Planifie la prochaine exécution automatique (vendredi 20h00)
     prochain = _prochaine_sauvegarde_vendredi()
     delai = (prochain - datetime.now()).total_seconds()
-    timer = threading.Timer(delai, _tache_automatique, args=[ville, user_login])
+    timer = threading.Timer(delai, sauvegarder_vers_ftp, args=[ville, user_login])
     timer.daemon = True
     timer.start()
-    logging.info(f"PROCHAINE SAUVEGARDE PLANIFIÉE : {ville} -> {prochain.strftime('%A %d/%m/%Y à %H:%M')}")
-    return prochain
+    logging.info(f"PROCHAINE SAUVEGARDE : {ville} -> {prochain.strftime('%A %d/%m/%Y à %H:%M')}")
 
-
-def planifier_sauvegarde_vendredi(ville, user_login):
-    """Déclenche une sauvegarde immédiate et planifie les suivantes chaque vendredi à 20h00."""
-    nb_ok, total = _effectuer_sauvegarde(ville, user_login)
-    prochain = _planifier_prochaine(ville, user_login)
     return nb_ok, total, prochain
