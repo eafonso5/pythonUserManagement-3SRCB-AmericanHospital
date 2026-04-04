@@ -4,8 +4,10 @@ import os
 from fonctions_gestion import (
     creer_utilisateur, consulter_liste_utilisateurs, rechercher_utilisateur,
     modifier_utilisateur, supprimer_utilisateur, changer_mon_mot_de_passe,
-    est_admin, consulter_profil
+    est_admin, est_superadmin, consulter_profil
 )
+
+VILLES = ["paris", "marseille", "rennes", "grenoble"]
 from gestion_fichiers import FileManager
 from gestion_ftp import FTPManager, sauvegarder_vers_ftp
 
@@ -45,14 +47,31 @@ def afficher_menu_user(user_connecte):
     print("\n" + "=" * 60)
 
 
+def _choisir_ville(ville_courante):
+    """Permet au Super Admin de changer de ville. Retourne la ville sélectionnée."""
+    print("\n--- CHANGER DE VILLE ---")
+    for i, ville in enumerate(VILLES, 1):
+        marqueur = " (actuelle)" if ville == ville_courante.lower() else ""
+        print(f"{i}. {ville.capitalize()}{marqueur}")
+    print("0. Annuler")
+
+    choix = input("\nVotre choix : ").strip()
+    if choix.isdigit() and 1 <= int(choix) <= len(VILLES):
+        nouvelle_ville = VILLES[int(choix) - 1]
+        logging.info(f"Super Admin : changement de ville -> {nouvelle_ville}")
+        return nouvelle_ville.capitalize()
+    return ville_courante
+
+
 def menu_technique(user_connecte):
     """Sous-menu pour la gestion locale des fichiers et la synchro FTP."""
 
-    fm = FileManager(user_connecte.Ville)
+    ville_active = user_connecte.Ville
+    fm = FileManager(ville_active)
     ftp_m = FTPManager(user_connecte.Login)
 
     while True:
-        print(f"\n--- GESTION DES FICHIERS : {user_connecte.Ville} ---")
+        print(f"\n--- GESTION DES FICHIERS : {ville_active} ---")
         print("1. Lister le contenu local")
         print("2. Créer un élément (Dossier ou Fichier)")
         print("3. Supprimer un fichier/dossier local")
@@ -62,6 +81,8 @@ def menu_technique(user_connecte):
         print("7. Lister le contenu FTP")
         print("8. Télécharger depuis FTP")
         print("9. Sauvegarder dossier local vers FTP")
+        if est_superadmin(user_connecte):
+            print("c. Changer de ville")
         print("0. Retour au menu principal")
 
         choix = input("\nVotre choix : ").strip()
@@ -69,7 +90,7 @@ def menu_technique(user_connecte):
         match choix:
             case "1":
                 lignes = fm.lister_arbre()
-                print(f"\nContenu du dossier {user_connecte.Ville.lower()} :")
+                print(f"\nContenu du dossier {ville_active.lower()} :")
                 if lignes:
                     for ligne in lignes:
                         print(f" {ligne}")
@@ -116,7 +137,7 @@ def menu_technique(user_connecte):
 
             case "6":
                 lignes = fm.lister_arbre()
-                print(f"\nContenu local ({user_connecte.Ville.lower()}) :")
+                print(f"\nContenu local ({ville_active.lower()}) :")
                 if lignes:
                     for ligne in lignes:
                         print(f" {ligne}")
@@ -128,7 +149,7 @@ def menu_technique(user_connecte):
                 if os.path.exists(path_complet):
                     print(f"Envoi de '{fichier}' vers le serveur FTP...")
                     if ftp_m.connecter():
-                        if ftp_m.upload_versioning(path_complet, user_connecte.Ville):
+                        if ftp_m.upload_versioning(path_complet, ville_active):
                             print("Synchronisation FTP réussie.")
                         ftp_m.deconnecter()
                     else:
@@ -137,12 +158,12 @@ def menu_technique(user_connecte):
                     print(f"Erreur : '{fichier}' n'existe pas dans votre répertoire local.")
 
             case "7":
-                print(f"Récupération du contenu FTP pour {user_connecte.Ville}...")
+                print(f"Récupération du contenu FTP pour {ville_active}...")
                 if ftp_m.connecter():
-                    fichiers = ftp_m.lister_contenu_ftp(user_connecte.Ville)
+                    fichiers = ftp_m.lister_contenu_ftp(ville_active)
                     ftp_m.deconnecter()
                     if fichiers:
-                        print(f"\nContenu FTP ({user_connecte.Ville}) :")
+                        print(f"\nContenu FTP ({ville_active}) :")
                         for f in fichiers:
                             print(f" - {f}")
                     else:
@@ -156,7 +177,7 @@ def menu_technique(user_connecte):
                     dest = fm.base_path
                     print(f"Téléchargement de '{nom_fichier}' vers {dest} ...")
                     if ftp_m.connecter():
-                        if ftp_m.telecharger_fichier(nom_fichier, user_connecte.Ville, dest):
+                        if ftp_m.telecharger_fichier(nom_fichier, ville_active, dest):
                             print(f"'{nom_fichier}' téléchargé dans {dest}.")
                         ftp_m.deconnecter()
                     else:
@@ -164,12 +185,19 @@ def menu_technique(user_connecte):
 
             case "9":
                 print("Sauvegarde en cours...")
-                nb_ok, total, prochain = sauvegarder_vers_ftp(user_connecte.Ville, user_connecte.Login)
+                nb_ok, total, prochain = sauvegarder_vers_ftp(ville_active, user_connecte.Login)
                 if total == -1:
                     print("Erreur : impossible de se connecter au serveur FTP.")
                 else:
-                    print(f"{nb_ok}/{total} fichier(s) sauvegardé(s).")
+                    print(f"{nb_ok}/{total} élément(s) sauvegardé(s).")
                 print(f"Prochaine sauvegarde automatique : {prochain.strftime('%A %d/%m/%Y à %H:%M')}.")
+
+            case "c" if est_superadmin(user_connecte):
+                nouvelle_ville = _choisir_ville(ville_active)
+                if nouvelle_ville != ville_active:
+                    ville_active = nouvelle_ville
+                    fm = FileManager(ville_active)
+                    print(f"Ville changée : {ville_active}")
 
             case "0":
                 break
