@@ -157,8 +157,8 @@ def menu_technique(user_connecte):
                         print("Erreur : Impossible de se connecter au serveur FTP.")
 
             case "9":
-                planifier_sauvegarde_vendredi()
-                print("Tâche planifiée : Vendredi à 20h00.")
+                prochain = planifier_sauvegarde_vendredi(user_connecte.Ville, user_connecte.Login)
+                print(f"Sauvegarde planifiée pour le {prochain.strftime('%A %d/%m/%Y à %H:%M')}.")
 
             case "0":
                 break
