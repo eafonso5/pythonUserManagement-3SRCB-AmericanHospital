@@ -48,10 +48,10 @@ class FileManager:
             return False
 
     def creer_fichier_vide(self, nom_fichier):
-        """Crée un fichier texte vide avec encodage UTF-8."""
+        """Crée un fichier texte vide, en créant les dossiers parents si nécessaire."""
         chemin = os.path.join(self.base_path, nom_fichier)
         try:
-            # Utilisation de l'encodage utf-8 pour une compatibilité maximale
+            os.makedirs(os.path.dirname(chemin), exist_ok=True)
             with open(chemin, 'w', encoding='utf-8') as f:
                 pass
             logger.info(f"Fichier créé : {nom_fichier} (Ville: {self.ville})")
