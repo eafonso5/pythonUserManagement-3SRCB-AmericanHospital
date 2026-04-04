@@ -1,7 +1,18 @@
+import os
 from database import DatabaseManager
 from fonctions_gestion import authentifier_utilisateur
 from menu import menu_principal
 import logging
+
+VILLES = ["paris", "marseille", "rennes", "grenoble"]
+
+
+def initialiser_dossiers():
+    """Crée les dossiers locaux data_hospital/[ville] s'ils n'existent pas."""
+    for ville in VILLES:
+        chemin = os.path.join("data_hospital", ville)
+        os.makedirs(chemin, exist_ok=True)
+    logging.info("Dossiers locaux initialisés.")
 
 
 def main():
@@ -9,11 +20,13 @@ def main():
 
     # Configuration initiale des logs pour la session
     logging.basicConfig(
-        filename='operations.log', 
-        level=logging.INFO, 
+        filename='operations.log',
+        level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s'
     )
     logging.info("Démarrage de l'application - Session Utilisateur")
+
+    initialiser_dossiers()
 
     print("\n" + "=" * 60)
     print(" SYSTÈME DE GESTION DES UTILISATEURS")
