@@ -4,14 +4,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Racine du projet (dossier parent de app/)
+_ROOT_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
 class FileManager:
     """Classe pour la gestion locale des fichiers, cloisonnée par ville."""
 
     def __init__(self, ville):
         """Initialise le répertoire de travail spécifique à la ville."""
         self.ville = ville
-        # Création du dossier racine 'data_hospital' s'il n'existe pas
-        self.base_path = os.path.join("data_hospital", ville.lower())
+        self.base_path = os.path.join(_ROOT_DIR, "data_hospital", ville.lower())
         
         if not os.path.exists(self.base_path):
             try:
