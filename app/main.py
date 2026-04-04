@@ -6,11 +6,14 @@ import logging
 
 VILLES = ["paris", "marseille", "rennes", "grenoble"]
 
+# Racine du projet (dossier parent de app/)
+ROOT_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
 
 def initialiser_dossiers():
     """Crée les dossiers locaux data_hospital/[ville] s'ils n'existent pas."""
     for ville in VILLES:
-        chemin = os.path.join("data_hospital", ville)
+        chemin = os.path.join(ROOT_DIR, "data_hospital", ville)
         os.makedirs(chemin, exist_ok=True)
     logging.info("Dossiers locaux initialisés.")
 

@@ -4,6 +4,9 @@ import logging
 import threading
 from datetime import datetime, timedelta
 
+# Racine du projet (dossier parent de app/)
+_ROOT_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
 class FTPManager:
     """Gestionnaire de synchronisation FTP configuré pour le serveur de test."""
 
@@ -138,7 +141,7 @@ def sauvegarder_vers_ftp(ville, user_login):
     """Uploade tous les fichiers locaux de la ville vers le FTP,
     puis planifie automatiquement la prochaine exécution le vendredi à 20h00."""
     logging.info(f"SAUVEGARDE DÉMARRÉE : {ville}")
-    base_path = os.path.join("data_hospital", ville.lower())
+    base_path = os.path.join(_ROOT_DIR, "data_hospital", ville.lower())
 
     nb_ok, total = 0, 0
     if not os.path.exists(base_path):
