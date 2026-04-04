@@ -85,6 +85,45 @@ class FTPManager:
             logging.error(f"ERREUR UPLOAD TEST : {e}")
             return False
 
+    def lister_contenu_ftp(self, ville):
+        """Liste les fichiers présents dans le dossier de la ville sur le FTP."""
+        if not self.ftp:
+            return []
+        try:
+            nom_ville = ville.lower()
+            try:
+                self.ftp.cwd(nom_ville)
+            except Exception:
+                logging.warning(f"Dossier FTP '{nom_ville}' introuvable.")
+                return []
+            fichiers = self.ftp.nlst()
+            logging.info(f"LISTING FTP : {ville} -> {len(fichiers)} élément(s).")
+            return fichiers
+        except Exception as e:
+            logging.error(f"Erreur listing FTP ({ville}): {e}")
+            return []
+
+    def telecharger_fichier(self, nom_fichier, ville, destination_locale):
+        """Télécharge un fichier depuis le dossier FTP de la ville."""
+        if not self.ftp:
+            return False
+        try:
+            nom_ville = ville.lower()
+            try:
+                self.ftp.cwd(nom_ville)
+            except Exception:
+                logging.error(f"Dossier FTP '{nom_ville}' introuvable.")
+                return False
+            chemin_local = os.path.join(destination_locale, nom_fichier)
+            with open(chemin_local, "wb") as f:
+                self.ftp.retrbinary(f"RETR {nom_fichier}", f.write)
+            logging.info(f"DOWNLOAD FTP RÉUSSI : {nom_fichier} -> {chemin_local}")
+            return True
+        except Exception as e:
+            logging.error(f"Erreur téléchargement FTP {nom_fichier}: {e}")
+            return False
+
+
 def planifier_sauvegarde_vendredi():
     logging.info("Planification de sauvegarde enregistrée pour Vendredi 20h00.")
     return "Action planifiée"

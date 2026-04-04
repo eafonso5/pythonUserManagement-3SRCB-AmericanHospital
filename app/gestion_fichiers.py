@@ -2,12 +2,7 @@ import os
 import shutil
 import logging
 
-# Configuration des logs pour tracer les actions locales
-logging.basicConfig(
-    filename='operations.log', 
-    level=logging.INFO, 
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logger = logging.getLogger(__name__)
 
 class FileManager:
     """Classe pour la gestion locale des fichiers, cloisonnée par ville."""
@@ -21,17 +16,22 @@ class FileManager:
         if not os.path.exists(self.base_path):
             try:
                 os.makedirs(self.base_path)
-                logging.info(f"Initialisation du répertoire local pour {ville}")
+                logger.info(f"Initialisation du répertoire local pour {ville}")
             except Exception as e:
-                logging.error(f"Erreur initialisation dossier {ville}: {e}")
+                logger.error(f"Erreur initialisation dossier {ville}: {e}")
 
     def lister_contenu(self):
         """Liste les fichiers et dossiers du site local."""
         try:
-            contenu = os.listdir(self.base_path)
-            return contenu if contenu else []
+            noms = os.listdir(self.base_path)
+            contenu = []
+            for nom in noms:
+                chemin = os.path.join(self.base_path, nom)
+                type_elem = "dossier" if os.path.isdir(chemin) else "fichier"
+                contenu.append({"nom": nom, "type": type_elem})
+            return contenu
         except Exception as e:
-            logging.error(f"Erreur lors du listage ({self.ville}): {e}")
+            logger.error(f"Erreur lors du listage ({self.ville}): {e}")
             return None
 
     def creer_repertoire(self, nom_dossier):
@@ -39,10 +39,10 @@ class FileManager:
         chemin = os.path.join(self.base_path, nom_dossier)
         try:
             os.makedirs(chemin, exist_ok=True)
-            logging.info(f"Dossier créé : {nom_dossier} (Ville: {self.ville})")
+            logger.info(f"Dossier créé : {nom_dossier} (Ville: {self.ville})")
             return True
         except Exception as e:
-            logging.error(f"Erreur création dossier {nom_dossier}: {e}")
+            logger.error(f"Erreur création dossier {nom_dossier}: {e}")
             return False
 
     def creer_fichier_vide(self, nom_fichier):
@@ -52,10 +52,10 @@ class FileManager:
             # Utilisation de l'encodage utf-8 pour une compatibilité maximale
             with open(chemin, 'w', encoding='utf-8') as f:
                 pass
-            logging.info(f"Fichier créé : {nom_fichier} (Ville: {self.ville})")
+            logger.info(f"Fichier créé : {nom_fichier} (Ville: {self.ville})")
             return True
         except Exception as e:
-            logging.error(f"Erreur création fichier {nom_fichier}: {e}")
+            logger.error(f"Erreur création fichier {nom_fichier}: {e}")
             return False
 
     def supprimer_element(self, nom_element):
@@ -66,10 +66,10 @@ class FileManager:
                 shutil.rmtree(chemin)
             else:
                 os.remove(chemin)
-            logging.info(f"Élément supprimé : {nom_element} (Ville: {self.ville})")
+            logger.info(f"Élément supprimé : {nom_element} (Ville: {self.ville})")
             return True
         except Exception as e:
-            logging.error(f"Erreur suppression {nom_element}: {e}")
+            logger.error(f"Erreur suppression {nom_element}: {e}")
             return False
 
     def deplacer_ou_renommer(self, source, destination):
@@ -78,8 +78,23 @@ class FileManager:
         dst_path = os.path.join(self.base_path, destination)
         try:
             shutil.move(src_path, dst_path)
-            logging.info(f"Déplacement : {source} -> {destination} (Ville: {self.ville})")
+            logger.info(f"Déplacement : {source} -> {destination} (Ville: {self.ville})")
             return True
         except Exception as e:
-            logging.error(f"Erreur déplacement {source}: {e}")
+            logger.error(f"Erreur déplacement {source}: {e}")
+            return False
+
+    def copier_element(self, source, destination):
+        """Copie un fichier ou un dossier dans l'espace de la ville."""
+        src_path = os.path.join(self.base_path, source)
+        dst_path = os.path.join(self.base_path, destination)
+        try:
+            if os.path.isdir(src_path):
+                shutil.copytree(src_path, dst_path)
+            else:
+                shutil.copy2(src_path, dst_path)
+            logger.info(f"Copie : {source} -> {destination} (Ville: {self.ville})")
+            return True
+        except Exception as e:
+            logger.error(f"Erreur copie {source}: {e}")
             return False
