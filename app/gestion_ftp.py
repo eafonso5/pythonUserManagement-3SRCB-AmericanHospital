@@ -116,13 +116,10 @@ class FTPManager:
         if not self.ftp:
             return []
         try:
-            nom_ville = ville.lower()
-            try:
-                self.ftp.cwd(nom_ville)
-            except Exception:
-                logging.warning(f"Dossier FTP '{nom_ville}' introuvable.")
-                return []
-            fichiers = self.ftp.nlst()
+            self._naviguer_vers(ville.lower())
+            # nlst() peut retourner des chemins complets (/paris/fichier.txt) selon le serveur
+            entrees = self.ftp.nlst()
+            fichiers = [os.path.basename(e) for e in entrees]
             logging.info(f"LISTING FTP : {ville} -> {len(fichiers)} élément(s).")
             return fichiers
         except Exception as e:
@@ -134,12 +131,7 @@ class FTPManager:
         if not self.ftp:
             return False
         try:
-            nom_ville = ville.lower()
-            try:
-                self.ftp.cwd(nom_ville)
-            except Exception:
-                logging.error(f"Dossier FTP '{nom_ville}' introuvable.")
-                return False
+            self._naviguer_vers(ville.lower())
             chemin_local = os.path.join(destination_locale, nom_fichier)
             with open(chemin_local, "wb") as f:
                 self.ftp.retrbinary(f"RETR {nom_fichier}", f.write)
