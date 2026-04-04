@@ -274,7 +274,8 @@ def menu_principal(db, user_connecte):
         print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
         print("=" * 60)
         print("\n1. Gestion des Utilisateurs")
-        print("2. Gestion des Fichiers")
+        if est_admin(user_connecte):
+            print("2. Gestion des Fichiers")
         print("0. Quitter")
 
         choix = input("\nVotre choix : ").strip()
@@ -287,12 +288,9 @@ def menu_principal(db, user_connecte):
                 else:
                     menu_utilisateur(db, user_connecte)
 
-            case "2":
-                if est_admin(user_connecte):
-                    logging.info(f"Navigation Gestion Fichiers par {user_connecte.Login}")
-                    menu_technique(user_connecte)
-                else:
-                    print("\nAccès refusé : cette section est réservée aux administrateurs.")
+            case "2" if est_admin(user_connecte):
+                logging.info(f"Navigation Gestion Fichiers par {user_connecte.Login}")
+                menu_technique(user_connecte)
 
             case "0":
                 print("\nAu revoir !")
