@@ -70,19 +70,19 @@ class FTPManager:
 
         try:
             if os.path.isdir(local_path):
-                return self._upload_dossier(local_path, nom_ville, nom_versionne)
+                self._upload_dossier(local_path, nom_ville, nom_versionne)
             else:
                 self._naviguer_vers(nom_ville)
                 with open(local_path, "rb") as f:
                     self.ftp.storbinary(f"STOR {nom_versionne}", f)
                 logging.info(f"UPLOAD FICHIER : {local_path} -> {nom_ville}/{nom_versionne}")
-                return True
+            return True
         except Exception as e:
             logging.error(f"ERREUR UPLOAD : {e}")
             return False
 
     def _upload_dossier(self, local_path, nom_ville, nom_racine_ftp):
-        """Upload récursif d'un dossier vers le FTP."""
+        """Upload récursif d'un dossier vers le FTP. Retourne le nombre de fichiers envoyés."""
         nb_ok = 0
         for racine, sous_dossiers, fichiers in os.walk(local_path):
             chemin_relatif = os.path.relpath(racine, local_path)
@@ -109,7 +109,24 @@ class FTPManager:
                     logging.error(f"Erreur upload {chemin_local}: {e}")
 
         logging.info(f"UPLOAD DOSSIER : {local_path} -> {nom_ville}/{nom_racine_ftp} ({nb_ok} fichiers)")
-        return True
+        return nb_ok
+
+    def _prochain_numero_version(self, nom_ville, prefixe):
+        """Retourne le prochain numéro de version pour un préfixe donné sur le FTP."""
+        try:
+            self._naviguer_vers(nom_ville)
+            entrees = [os.path.basename(e) for e in self.ftp.nlst()]
+            max_v = 0
+            for entree in entrees:
+                if entree.startswith(f"{prefixe}_V"):
+                    try:
+                        n = int(entree[len(prefixe) + 2:])
+                        max_v = max(max_v, n)
+                    except ValueError:
+                        pass
+            return max_v + 1
+        except Exception:
+            return 1
 
     def lister_contenu_ftp(self, ville):
         """Liste les fichiers présents dans le dossier de la ville sur le FTP."""
@@ -152,36 +169,34 @@ def _prochaine_sauvegarde_vendredi():
     return prochain
 
 
-def sauvegarder_vers_ftp(ville, user_login):
-    """Uploade tous les fichiers locaux de la ville vers le FTP,
+def sauvegarder_vers_ftp(ville, user_login, prefixe="automatic_saving"):
+    """Uploade tous les fichiers locaux de la ville vers un dossier versionné sur le FTP,
     puis planifie automatiquement la prochaine exécution le vendredi à 20h00."""
-    logging.info(f"SAUVEGARDE DÉMARRÉE : {ville}")
+    logging.info(f"SAUVEGARDE DÉMARRÉE : {ville} ({prefixe})")
     base_path = os.path.join(_ROOT_DIR, "data_hospital", ville.lower())
 
-    nb_ok, total = 0, 0
+    nb_ok, nom_sauvegarde = 0, None
     if not os.path.exists(base_path):
         logging.warning(f"SAUVEGARDE : dossier local introuvable ({base_path})")
-        total = -1
+        nb_ok = -1
     else:
         ftp = FTPManager(user_login)
         if not ftp.connecter():
             logging.error("SAUVEGARDE ÉCHOUÉE : impossible de se connecter au FTP")
-            total = -1
+            nb_ok = -1
         else:
-            elements = os.listdir(base_path)
-            total = len(elements)
-            for element in elements:
-                if ftp.upload_versioning(os.path.join(base_path, element), ville):
-                    nb_ok += 1
+            version = ftp._prochain_numero_version(ville.lower(), prefixe)
+            nom_sauvegarde = f"{prefixe}_V{version}"
+            nb_ok = ftp._upload_dossier(base_path, ville.lower(), nom_sauvegarde)
             ftp.deconnecter()
-            logging.info(f"SAUVEGARDE TERMINÉE : {nb_ok}/{total} fichier(s) ({ville})")
+            logging.info(f"SAUVEGARDE TERMINÉE : {nb_ok} fichier(s) -> {ville}/{nom_sauvegarde}")
 
     # Planifie la prochaine exécution automatique (vendredi 20h00)
     prochain = _prochaine_sauvegarde_vendredi()
     delai = (prochain - datetime.now()).total_seconds()
-    timer = threading.Timer(delai, sauvegarder_vers_ftp, args=[ville, user_login])
+    timer = threading.Timer(delai, sauvegarder_vers_ftp, args=[ville, user_login, "automatic_saving"])
     timer.daemon = True
     timer.start()
     logging.info(f"PROCHAINE SAUVEGARDE : {ville} -> {prochain.strftime('%A %d/%m/%Y à %H:%M')}")
 
-    return nb_ok, total, prochain
+    return nb_ok, nom_sauvegarde, prochain
