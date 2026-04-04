@@ -168,10 +168,10 @@ def sauvegarder_vers_ftp(ville, user_login):
             logging.error("SAUVEGARDE ÉCHOUÉE : impossible de se connecter au FTP")
             total = -1
         else:
-            fichiers = [f for f in os.listdir(base_path) if os.path.isfile(os.path.join(base_path, f))]
-            total = len(fichiers)
-            for fichier in fichiers:
-                if ftp.upload_versioning(os.path.join(base_path, fichier), ville):
+            elements = os.listdir(base_path)
+            total = len(elements)
+            for element in elements:
+                if ftp.upload_versioning(os.path.join(base_path, element), ville):
                     nb_ok += 1
             ftp.deconnecter()
             logging.info(f"SAUVEGARDE TERMINÉE : {nb_ok}/{total} fichier(s) ({ville})")
