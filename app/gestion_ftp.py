@@ -136,20 +136,19 @@ def _prochaine_sauvegarde_vendredi():
     return prochain
 
 
-def _executer_sauvegarde(ville, user_login):
-    """Uploade tous les fichiers locaux de la ville vers le FTP, puis replanifie."""
-    logging.info(f"SAUVEGARDE AUTOMATIQUE DÉMARRÉE : {ville}")
+def _effectuer_sauvegarde(ville, user_login):
+    """Uploade tous les fichiers locaux de la ville vers le FTP."""
+    logging.info(f"SAUVEGARDE DÉMARRÉE : {ville}")
     base_path = os.path.join("data_hospital", ville.lower())
 
     if not os.path.exists(base_path):
         logging.warning(f"SAUVEGARDE : dossier local introuvable ({base_path})")
-        return
+        return 0, 0
 
     ftp = FTPManager(user_login)
     if not ftp.connecter():
         logging.error("SAUVEGARDE ÉCHOUÉE : impossible de se connecter au FTP")
-        planifier_sauvegarde_vendredi(ville, user_login)
-        return
+        return 0, -1
 
     fichiers = [f for f in os.listdir(base_path) if os.path.isfile(os.path.join(base_path, f))]
     nb_ok = 0
@@ -158,20 +157,29 @@ def _executer_sauvegarde(ville, user_login):
             nb_ok += 1
 
     ftp.deconnecter()
-    logging.info(f"SAUVEGARDE AUTOMATIQUE TERMINÉE : {nb_ok}/{len(fichiers)} fichier(s) ({ville})")
+    logging.info(f"SAUVEGARDE TERMINÉE : {nb_ok}/{len(fichiers)} fichier(s) ({ville})")
+    return nb_ok, len(fichiers)
 
-    # Replanifie pour le vendredi suivant
-    planifier_sauvegarde_vendredi(ville, user_login)
+
+def _tache_automatique(ville, user_login):
+    """Tâche exécutée automatiquement chaque vendredi : sauvegarde + replanification."""
+    _effectuer_sauvegarde(ville, user_login)
+    _planifier_prochaine(ville, user_login)
+
+
+def _planifier_prochaine(ville, user_login):
+    """Planifie uniquement la prochaine occurrence (sans exécution immédiate)."""
+    prochain = _prochaine_sauvegarde_vendredi()
+    delai = (prochain - datetime.now()).total_seconds()
+    timer = threading.Timer(delai, _tache_automatique, args=[ville, user_login])
+    timer.daemon = True
+    timer.start()
+    logging.info(f"PROCHAINE SAUVEGARDE PLANIFIÉE : {ville} -> {prochain.strftime('%A %d/%m/%Y à %H:%M')}")
+    return prochain
 
 
 def planifier_sauvegarde_vendredi(ville, user_login):
-    """Planifie la sauvegarde automatique du prochain vendredi à 20h00."""
-    prochain = _prochaine_sauvegarde_vendredi()
-    delai = (prochain - datetime.now()).total_seconds()
-
-    timer = threading.Timer(delai, _executer_sauvegarde, args=[ville, user_login])
-    timer.daemon = True  # S'arrête proprement quand le programme se ferme
-    timer.start()
-
-    logging.info(f"SAUVEGARDE PLANIFIÉE : {ville} -> {prochain.strftime('%A %d/%m/%Y à %H:%M')}")
-    return prochain
+    """Déclenche une sauvegarde immédiate et planifie les suivantes chaque vendredi à 20h00."""
+    nb_ok, total = _effectuer_sauvegarde(ville, user_login)
+    prochain = _planifier_prochaine(ville, user_login)
+    return nb_ok, total, prochain
