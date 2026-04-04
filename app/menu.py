@@ -116,7 +116,15 @@ def menu_technique(user_connecte):
                         print(f"'{source}' copié vers '{destination}'.")
 
             case "6":
-                fichier = input("Nom du fichier à envoyer vers le FTP (ex: bilan.txt) : ").strip()
+                contenu = fm.lister_contenu()
+                print(f"\nContenu local ({user_connecte.Ville.lower()}) :")
+                if contenu:
+                    for element in contenu:
+                        prefixe = "[D]" if element["type"] == "dossier" else "[F]"
+                        print(f" {prefixe} {element['nom']}")
+                else:
+                    print(" (Dossier vide)")
+                fichier = input("\nNom du fichier à envoyer vers le FTP : ").strip()
                 path_complet = os.path.join(fm.base_path, fichier)
 
                 if os.path.exists(path_complet):
