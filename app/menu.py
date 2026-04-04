@@ -185,11 +185,11 @@ def menu_technique(user_connecte):
 
             case "9":
                 print("Sauvegarde en cours...")
-                nb_ok, total, prochain = sauvegarder_vers_ftp(ville_active, user_connecte.Login)
-                if total == -1:
+                nb_ok, nom_sauvegarde, prochain = sauvegarder_vers_ftp(ville_active, user_connecte.Login, "manual_saving")
+                if nb_ok == -1:
                     print("Erreur : impossible de se connecter au serveur FTP.")
                 else:
-                    print(f"{nb_ok}/{total} élément(s) sauvegardé(s).")
+                    print(f"{nb_ok} fichier(s) sauvegardé(s) dans '{ville_active.lower()}/{nom_sauvegarde}'.")
                 print(f"Prochaine sauvegarde automatique : {prochain.strftime('%A %d/%m/%Y à %H:%M')}.")
 
             case "c" if est_superadmin(user_connecte):
