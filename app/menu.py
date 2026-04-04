@@ -84,13 +84,13 @@ def menu_technique(user_connecte):
                 type_element = input("Votre choix (1 ou 2) : ").strip()
 
                 if type_element == "1":
-                    nom = input("Nom du nouveau dossier : ").strip()
+                    nom = input("Nom ou chemin du dossier (ex: archives/2024) : ").strip()
                     if nom and fm.creer_repertoire(nom):
-                        print(f"Dossier '{nom}' créé avec succès.")
+                        print(f"Dossier '{nom}' créé.")
                 elif type_element == "2":
-                    nom = input("Nom du nouveau fichier (avec extension, ex: bilan.txt) : ").strip()
+                    nom = input("Nom ou chemin du fichier (ex: bilans/2024/rapport.txt) : ").strip()
                     if nom and fm.creer_fichier_vide(nom):
-                        print(f"Fichier '{nom}' créé avec succès.")
+                        print(f"Fichier '{nom}' créé.")
                 else:
                     print("Erreur : Type d'élément invalide.")
 
