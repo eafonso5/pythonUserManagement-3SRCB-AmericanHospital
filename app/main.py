@@ -4,6 +4,7 @@ from fonctions_gestion import authentifier_utilisateur
 from menu import menu_principal
 import logging
 
+# Liste des villes disponibles dans l'application
 VILLES = ["paris", "marseille", "rennes", "grenoble"]
 
 # Racine du projet (dossier parent de app/)
@@ -21,7 +22,7 @@ def initialiser_dossiers():
 def main():
     """Fonction principale du programme."""
 
-    # Configuration initiale des logs pour la session
+    # Configuration du système de logs pour toute la session
     logging.basicConfig(
         filename='operations.log',
         level=logging.INFO,
@@ -29,27 +30,24 @@ def main():
     )
     logging.info("Démarrage de l'application - Session Utilisateur")
 
+    # Création des dossiers locaux au démarrage si absents
     initialiser_dossiers()
 
     print("\n" + "=" * 60)
     print(" SYSTÈME DE GESTION DES UTILISATEURS")
     print(" American Hospital - Programme Patient-First")
     print("=" * 60)
-    
-    # Création du gestionnaire de base de données.
-    # Cette étape initialise la connexion et crée la table si nécessaire.
+
+    # Initialisation du gestionnaire de base de données
     db = DatabaseManager()
-    
-    # Lancement de la procédure d’authentification.
-    # Renvoie un objet User si l'identification est correcte.
+
+    # Authentification de l'utilisateur avant accès au menu
     user_connecte = authentifier_utilisateur(db)
-    
-    # Une fois authentifié, on dirige l'utilisateur vers le menu approprié.
-    # Le rôle du user déterminera quel type de menu sera affiché.
+
+    # Redirection vers le menu principal selon le rôle de l'utilisateur
     menu_principal(db, user_connecte)
 
 
-# Vérifie que ce fichier est exécuté directement.
-# Cela permet d’éviter d’exécuter main() en cas d’importation du module.
+# Exécution directe uniquement, pas lors d'une importation du module
 if __name__ == "__main__":
     main()

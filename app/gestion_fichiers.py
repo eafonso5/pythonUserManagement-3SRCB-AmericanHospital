@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 # Racine du projet (dossier parent de app/)
 _ROOT_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
+
 class FileManager:
     """Classe pour la gestion locale des fichiers, cloisonnée par ville."""
 
@@ -14,7 +15,8 @@ class FileManager:
         """Initialise le répertoire de travail spécifique à la ville."""
         self.ville = ville
         self.base_path = os.path.join(_ROOT_DIR, "data_hospital", ville.lower())
-        
+
+        # Création automatique du dossier si absent (ex : premier lancement ou suppression manuelle)
         if not os.path.exists(self.base_path):
             try:
                 os.makedirs(self.base_path)
@@ -23,7 +25,7 @@ class FileManager:
                 logger.error(f"Erreur initialisation dossier {ville}: {e}")
 
     def lister_contenu(self):
-        """Liste les fichiers et dossiers du site local (premier niveau)."""
+        """Liste les fichiers et dossiers du répertoire local (premier niveau uniquement)."""
         try:
             noms = os.listdir(self.base_path)
             contenu = []
@@ -37,7 +39,7 @@ class FileManager:
             return None
 
     def lister_arbre(self, sous_chemin="", prefixe=""):
-        """Liste récursivement le contenu sous forme d'arbre indenté."""
+        """Liste récursivement le contenu du dossier sous forme d'arbre indenté."""
         dossier = os.path.join(self.base_path, sous_chemin) if sous_chemin else self.base_path
         lignes = []
         try:
@@ -45,6 +47,8 @@ class FileManager:
                 chemin = os.path.join(dossier, nom)
                 if os.path.isdir(chemin):
                     lignes.append(f"{prefixe}[D] {nom}/")
+
+                    # Descente récursive dans le sous-dossier avec indentation augmentée
                     sous = os.path.join(sous_chemin, nom) if sous_chemin else nom
                     lignes.extend(self.lister_arbre(sous, prefixe + "    "))
                 else:
@@ -54,7 +58,7 @@ class FileManager:
         return lignes
 
     def creer_repertoire(self, nom_dossier):
-        """Crée un sous-dossier dans l'espace de la ville."""
+        """Crée un sous-dossier dans l'espace de la ville, avec création récursive des parents."""
         chemin = os.path.join(self.base_path, nom_dossier)
         try:
             os.makedirs(chemin, exist_ok=True)
@@ -65,9 +69,10 @@ class FileManager:
             return False
 
     def creer_fichier_vide(self, nom_fichier):
-        """Crée un fichier texte vide, en créant les dossiers parents si nécessaire."""
+        """Crée un fichier texte vide en créant les dossiers parents si nécessaire."""
         chemin = os.path.join(self.base_path, nom_fichier)
         try:
+            # Création des dossiers intermédiaires si le chemin est imbriqué
             os.makedirs(os.path.dirname(chemin), exist_ok=True)
             with open(chemin, 'w', encoding='utf-8') as f:
                 pass
@@ -78,7 +83,7 @@ class FileManager:
             return False
 
     def supprimer_element(self, nom_element):
-        """Supprime un fichier ou un dossier récursivement."""
+        """Supprime un fichier ou un dossier (récursivement si dossier)."""
         chemin = os.path.join(self.base_path, nom_element)
         try:
             if os.path.isdir(chemin):
@@ -92,7 +97,7 @@ class FileManager:
             return False
 
     def deplacer_ou_renommer(self, source, destination):
-        """Déplace ou renomme un fichier/dossier local."""
+        """Déplace ou renomme un fichier ou dossier dans l'espace local."""
         src_path = os.path.join(self.base_path, source)
         dst_path = os.path.join(self.base_path, destination)
         try:
