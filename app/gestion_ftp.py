@@ -111,22 +111,9 @@ class FTPManager:
         logging.info(f"UPLOAD DOSSIER : {local_path} -> {nom_ville}/{nom_racine_ftp} ({nb_ok} fichiers)")
         return nb_ok
 
-    def _prochain_numero_version(self, nom_ville, prefixe):
-        """Retourne le prochain numéro de version pour un préfixe donné sur le FTP."""
-        try:
-            self._naviguer_vers(nom_ville)
-            entrees = [os.path.basename(e) for e in self.ftp.nlst()]
-            max_v = 0
-            for entree in entrees:
-                if entree.startswith(f"{prefixe}_V"):
-                    try:
-                        n = int(entree[len(prefixe) + 2:])
-                        max_v = max(max_v, n)
-                    except ValueError:
-                        pass
-            return max_v + 1
-        except Exception:
-            return 1
+    def _nom_sauvegarde(self, prefixe):
+        """Retourne le nom du dossier de sauvegarde au format AAAAMMJJ_HHMM_prefixe."""
+        return datetime.now().strftime(f"%Y%m%d_%H%M_{prefixe}")
 
     def lister_contenu_ftp(self, ville):
         """Liste les fichiers présents dans le dossier de la ville sur le FTP."""
@@ -185,8 +172,7 @@ def sauvegarder_vers_ftp(ville, user_login, prefixe="automatic_saving"):
             logging.error("SAUVEGARDE ÉCHOUÉE : impossible de se connecter au FTP")
             nb_ok = -1
         else:
-            version = ftp._prochain_numero_version(ville.lower(), prefixe)
-            nom_sauvegarde = f"{prefixe}_V{version}"
+            nom_sauvegarde = ftp._nom_sauvegarde(prefixe)
             nb_ok = ftp._upload_dossier(base_path, ville.lower(), nom_sauvegarde)
             ftp.deconnecter()
             logging.info(f"SAUVEGARDE TERMINÉE : {nb_ok} fichier(s) -> {ville}/{nom_sauvegarde}")
