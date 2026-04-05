@@ -180,7 +180,7 @@ def sauvegarder_vers_ftp(ville, user_login, prefixe="automatic_saving"):
     # Planifie la prochaine exécution automatique (vendredi 20h00)
     prochain = _prochaine_sauvegarde_vendredi()
     delai = (prochain - datetime.now()).total_seconds()
-    timer = threading.Timer(delai, sauvegarder_vers_ftp, args=[ville, user_login, "automatic_saving"])
+    timer = threading.Timer(delai, sauvegarder_vers_ftp, args=[ville, user_login, "global_automatic_saving"])
     timer.daemon = True
     timer.start()
     logging.info(f"PROCHAINE SAUVEGARDE : {ville} -> {prochain.strftime('%A %d/%m/%Y à %H:%M')}")
