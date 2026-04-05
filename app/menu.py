@@ -7,7 +7,9 @@ from fonctions_gestion import (
     est_admin, est_superadmin, consulter_profil
 )
 
+# Liste des villes disponibles dans l'application
 VILLES = ["paris", "marseille", "rennes", "grenoble"]
+
 from gestion_fichiers import FileManager
 from gestion_ftp import FTPManager, sauvegarder_vers_ftp
 
@@ -49,23 +51,31 @@ def afficher_menu_user(user_connecte):
 
 def _choisir_ville(ville_courante):
     """Permet au Super Admin de changer de ville. Retourne la ville sélectionnée."""
+
     print("\n--- CHANGER DE VILLE ---")
+
+    # Affichage numéroté avec marquage de la ville actuellement active
     for i, ville in enumerate(VILLES, 1):
         marqueur = " (actuelle)" if ville == ville_courante.lower() else ""
         print(f"{i}. {ville.capitalize()}{marqueur}")
     print("0. Annuler")
 
     choix = input("\nVotre choix : ").strip()
+
+    # Validation du choix et retour de la nouvelle ville si valide
     if choix.isdigit() and 1 <= int(choix) <= len(VILLES):
         nouvelle_ville = VILLES[int(choix) - 1]
         logging.info(f"Super Admin : changement de ville -> {nouvelle_ville}")
         return nouvelle_ville.capitalize()
+
+    # Choix invalide ou annulation : on conserve la ville courante
     return ville_courante
 
 
 def menu_technique(user_connecte):
-    """Sous-menu pour la gestion locale des fichiers et la synchro FTP."""
+    """Sous-menu pour la gestion locale des fichiers et la synchronisation FTP."""
 
+    # Initialisation avec la ville de l'utilisateur connecté
     ville_active = user_connecte.Ville
     fm = FileManager(ville_active)
     ftp_m = FTPManager(user_connecte.Login)
@@ -81,6 +91,8 @@ def menu_technique(user_connecte):
         print("7. Lister le contenu FTP")
         print("8. Télécharger depuis FTP")
         print("9. Sauvegarder dossier local vers FTP")
+
+        # Option de changement de ville réservée au Super Admin
         if est_superadmin(user_connecte):
             print("c. Changer de ville")
         print("0. Retour au menu principal")
@@ -88,7 +100,9 @@ def menu_technique(user_connecte):
         choix = input("\nVotre choix : ").strip()
 
         match choix:
+
             case "1":
+                # Affichage de l'arborescence complète du dossier local
                 lignes = fm.lister_arbre()
                 print(f"\nContenu du dossier {ville_active.lower()} :")
                 if lignes:
@@ -98,6 +112,7 @@ def menu_technique(user_connecte):
                     print(" (Dossier vide)")
 
             case "2":
+                # Choix entre création d'un dossier ou d'un fichier
                 print("\nQuel type d'élément souhaitez-vous créer ?")
                 print("1. Dossier")
                 print("2. Fichier")
@@ -115,6 +130,7 @@ def menu_technique(user_connecte):
                     print("Erreur : Type d'élément invalide.")
 
             case "3":
+                # Demande de confirmation avant suppression définitive
                 nom = input("Nom de l'élément à supprimer (avec extension si fichier) : ").strip()
                 confirm = input(f"Confirmer la suppression de '{nom}' ? (oui/non) : ").lower()
                 if confirm == "oui":
@@ -122,6 +138,7 @@ def menu_technique(user_connecte):
                         print(f"'{nom}' supprimé.")
 
             case "4":
+                # Déplacement ou renommage d'un élément local
                 source = input("Nom de l'élément source : ").strip()
                 destination = input("Nouveau nom / destination : ").strip()
                 if source and destination:
@@ -129,6 +146,7 @@ def menu_technique(user_connecte):
                         print(f"'{source}' déplacé/renommé vers '{destination}'.")
 
             case "5":
+                # Copie d'un fichier ou dossier dans le même espace local
                 source = input("Nom de l'élément à copier : ").strip()
                 destination = input("Nom de la copie : ").strip()
                 if source and destination:
@@ -136,6 +154,7 @@ def menu_technique(user_connecte):
                         print(f"'{source}' copié vers '{destination}'.")
 
             case "6":
+                # Affichage du contenu local avant sélection de l'élément à envoyer
                 lignes = fm.lister_arbre()
                 print(f"\nContenu local ({ville_active.lower()}) :")
                 if lignes:
@@ -143,6 +162,7 @@ def menu_technique(user_connecte):
                         print(f" {ligne}")
                 else:
                     print(" (Dossier vide)")
+
                 fichier = input("\nNom du fichier ou dossier à envoyer vers le FTP : ").strip()
                 path_complet = os.path.join(fm.base_path, fichier)
 
@@ -158,6 +178,7 @@ def menu_technique(user_connecte):
                     print(f"Erreur : '{fichier}' n'existe pas dans votre répertoire local.")
 
             case "7":
+                # Récupération et affichage de la liste des entrées FTP distantes
                 print(f"Récupération du contenu FTP pour {ville_active}...")
                 if ftp_m.connecter():
                     fichiers = ftp_m.lister_contenu_ftp(ville_active)
@@ -172,6 +193,7 @@ def menu_technique(user_connecte):
                     print("Erreur : Impossible de se connecter au serveur FTP.")
 
             case "8":
+                # Téléchargement d'un fichier FTP vers le dossier local de la ville
                 nom_fichier = input("Nom du fichier à télécharger depuis le FTP : ").strip()
                 if nom_fichier:
                     dest = fm.base_path
@@ -184,6 +206,7 @@ def menu_technique(user_connecte):
                         print("Erreur : Impossible de se connecter au serveur FTP.")
 
             case "9":
+                # Sauvegarde manuelle complète de l'arborescence de la ville vers le FTP
                 print("Sauvegarde en cours...")
                 nb_ok, nom_sauvegarde, prochain = sauvegarder_vers_ftp(ville_active, user_connecte.Login, "manual_saving")
                 if nb_ok == -1:
@@ -193,6 +216,7 @@ def menu_technique(user_connecte):
                 print(f"Prochaine sauvegarde automatique : {prochain.strftime('%A %d/%m/%Y à %H:%M')}.")
 
             case "c" if est_superadmin(user_connecte):
+                # Changement de ville et réinitialisation du gestionnaire de fichiers
                 nouvelle_ville = _choisir_ville(ville_active)
                 if nouvelle_ville != ville_active:
                     ville_active = nouvelle_ville
@@ -207,7 +231,7 @@ def menu_technique(user_connecte):
 
 
 def menu_administrateur(db, user_connecte):
-    """Menu administrateur : gestion des utilisateurs."""
+    """Menu administrateur : gestion complète des utilisateurs."""
 
     while True:
         afficher_menu_admin(user_connecte)
@@ -215,6 +239,7 @@ def menu_administrateur(db, user_connecte):
         choix = input("\nVotre choix : ").strip()
 
         match choix:
+
             case "1":
                 creer_utilisateur(db, user_connecte)
 
@@ -252,6 +277,7 @@ def menu_utilisateur(db, user_connecte):
         choix = input("\nVotre choix : ").strip()
 
         match choix:
+
             case "1":
                 consulter_profil(user_connecte)
 
@@ -273,6 +299,8 @@ def menu_principal(db, user_connecte):
         print(" === AMERICAN HOSPITAL - Patient-First ===")
         print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
         print("=" * 60)
+
+        # L'accès à la gestion des fichiers est réservé aux administrateurs
         print("\n1. Gestion des Utilisateurs")
         if est_admin(user_connecte):
             print("2. Gestion des Fichiers")
@@ -281,8 +309,11 @@ def menu_principal(db, user_connecte):
         choix = input("\nVotre choix : ").strip()
 
         match choix:
+
             case "1":
                 logging.info(f"Navigation Gestion Utilisateurs par {user_connecte.Login}")
+
+                # Orientation vers le menu admin ou utilisateur selon le rôle
                 if est_admin(user_connecte):
                     menu_administrateur(db, user_connecte)
                 else:
