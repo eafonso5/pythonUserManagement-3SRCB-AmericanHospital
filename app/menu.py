@@ -119,11 +119,11 @@ def menu_technique(user_connecte):
                 type_element = input("Votre choix (1 ou 2) : ").strip()
 
                 if type_element == "1":
-                    nom = input("Nom ou chemin du dossier (ex: archives/2024) : ").strip()
+                    nom = input("Nom ou chemin du dossier (ex: archives/2024) : ").strip().lstrip("/")
                     if nom and fm.creer_repertoire(nom):
                         print(f"Dossier '{nom}' créé.")
                 elif type_element == "2":
-                    nom = input("Nom ou chemin du fichier (ex: bilans/2024/rapport.txt) : ").strip()
+                    nom = input("Nom ou chemin du fichier (ex: bilans/2024/rapport.txt) : ").strip().lstrip("/")
                     if nom and fm.creer_fichier_vide(nom):
                         print(f"Fichier '{nom}' créé.")
                 else:
@@ -131,7 +131,7 @@ def menu_technique(user_connecte):
 
             case "3":
                 # Demande de confirmation avant suppression définitive
-                nom = input("Nom de l'élément à supprimer (avec extension si fichier) : ").strip()
+                nom = input("Nom de l'élément à supprimer (avec extension si fichier) : ").strip().lstrip("/")
                 confirm = input(f"Confirmer la suppression de '{nom}' ? (oui/non) : ").lower()
                 if confirm == "oui":
                     if fm.supprimer_element(nom):
@@ -139,16 +139,16 @@ def menu_technique(user_connecte):
 
             case "4":
                 # Déplacement ou renommage d'un élément local
-                source = input("Nom de l'élément source : ").strip()
-                destination = input("Nouveau nom / destination : ").strip()
+                source = input("Nom de l'élément source : ").strip().lstrip("/")
+                destination = input("Nouveau nom / destination : ").strip().lstrip("/")
                 if source and destination:
                     if fm.deplacer_ou_renommer(source, destination):
                         print(f"'{source}' déplacé/renommé vers '{destination}'.")
 
             case "5":
                 # Copie d'un fichier ou dossier dans le même espace local
-                source = input("Nom de l'élément à copier : ").strip()
-                destination = input("Nom de la copie : ").strip()
+                source = input("Nom de l'élément à copier : ").strip().lstrip("/")
+                destination = input("Nom de la copie : ").strip().lstrip("/")
                 if source and destination:
                     if fm.copier_element(source, destination):
                         print(f"'{source}' copié vers '{destination}'.")
