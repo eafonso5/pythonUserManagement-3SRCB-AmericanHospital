@@ -178,15 +178,15 @@ def menu_technique(user_connecte):
                     print(f"Erreur : '{fichier}' n'existe pas dans votre répertoire local.")
 
             case "7":
-                # Récupération et affichage de la liste des entrées FTP distantes
+                # Récupération et affichage de l'arborescence FTP distante
                 print(f"Récupération du contenu FTP pour {ville_active}...")
                 if ftp_m.connecter():
-                    fichiers = ftp_m.lister_contenu_ftp(ville_active)
+                    lignes = ftp_m.lister_arbre_ftp(ville_active)
                     ftp_m.deconnecter()
-                    if fichiers:
+                    if lignes:
                         print(f"\nContenu FTP ({ville_active}) :")
-                        for f in fichiers:
-                            print(f" - {f}")
+                        for ligne in lignes:
+                            print(f" {ligne}")
                     else:
                         print(" (Dossier FTP vide ou introuvable)")
                 else:

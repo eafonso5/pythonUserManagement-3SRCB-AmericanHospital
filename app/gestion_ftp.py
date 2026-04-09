@@ -138,16 +138,75 @@ class FTPManager:
             logging.error(f"Erreur listing FTP ({ville}): {e}")
             return []
 
+    def lister_arbre_ftp(self, ville, prefixe=""):
+        """Liste récursivement le contenu FTP sous forme d'arbre indenté (même format que lister_arbre local)."""
+        if not self.ftp:
+            return []
+        try:
+            self._naviguer_vers(ville.lower())
+            return self._lister_arbre_ftp_recursif(prefixe)
+        except Exception as e:
+            logging.error(f"Erreur listing arbre FTP ({ville}): {e}")
+            return []
+
+    def _lister_arbre_ftp_recursif(self, prefixe=""):
+        """Parcourt récursivement le répertoire FTP courant et retourne les lignes de l'arbre."""
+        lignes = []
+        try:
+            entrees = sorted([os.path.basename(e) for e in self.ftp.nlst()])
+        except Exception:
+            return lignes
+
+        for entree in entrees:
+            if self._est_dossier_ftp(entree):
+                lignes.append(f"{prefixe}[D] {entree}/")
+                self.ftp.cwd(entree)
+                lignes.extend(self._lister_arbre_ftp_recursif(prefixe + "    "))
+                self.ftp.cwd("..")
+            else:
+                lignes.append(f"{prefixe}[F] {entree}")
+        return lignes
+
+    def _est_dossier_ftp(self, nom):
+        """Retourne True si l'entrée FTP courante est un dossier, False si c'est un fichier."""
+        try:
+            self.ftp.cwd(nom)
+            self.ftp.cwd("..")
+            return True
+        except Exception:
+            return False
+
+    def _telecharger_dossier(self, nom_ftp, destination_locale):
+        """Télécharge récursivement un dossier FTP vers le système local."""
+        dossier_local = os.path.join(destination_locale, nom_ftp)
+        os.makedirs(dossier_local, exist_ok=True)
+        self.ftp.cwd(nom_ftp)
+
+        entrees = [os.path.basename(e) for e in self.ftp.nlst()]
+        for entree in entrees:
+            if self._est_dossier_ftp(entree):
+                self._telecharger_dossier(entree, dossier_local)
+            else:
+                chemin_local = os.path.join(dossier_local, entree)
+                with open(chemin_local, "wb") as f:
+                    self.ftp.retrbinary(f"RETR {entree}", f.write)
+
+        self.ftp.cwd("..")
+
     def telecharger_fichier(self, nom_fichier, ville, destination_locale):
-        """Télécharge un fichier depuis le dossier FTP de la ville vers le dossier local."""
+        """Télécharge un fichier ou un dossier depuis le dossier FTP de la ville vers le dossier local."""
         if not self.ftp:
             return False
         try:
             self._naviguer_vers(ville.lower())
-            chemin_local = os.path.join(destination_locale, nom_fichier)
-            with open(chemin_local, "wb") as f:
-                self.ftp.retrbinary(f"RETR {nom_fichier}", f.write)
-            logging.info(f"DOWNLOAD FTP RÉUSSI : {nom_fichier} -> {chemin_local}")
+            if self._est_dossier_ftp(nom_fichier):
+                self._telecharger_dossier(nom_fichier, destination_locale)
+                logging.info(f"DOWNLOAD FTP RÉUSSI (dossier) : {nom_fichier} -> {destination_locale}")
+            else:
+                chemin_local = os.path.join(destination_locale, nom_fichier)
+                with open(chemin_local, "wb") as f:
+                    self.ftp.retrbinary(f"RETR {nom_fichier}", f.write)
+                logging.info(f"DOWNLOAD FTP RÉUSSI (fichier) : {nom_fichier} -> {chemin_local}")
             return True
         except Exception as e:
             logging.error(f"Erreur téléchargement FTP {nom_fichier}: {e}")
