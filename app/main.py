@@ -1,6 +1,7 @@
 import os
 from database import DatabaseManager
 from fonctions_gestion import authentifier_utilisateur
+from gestion_ftp import demarrer_sauvegarde_auto
 from menu import menu_principal
 import logging
 
@@ -43,6 +44,10 @@ def main():
 
     # Authentification de l'utilisateur avant accès au menu
     user_connecte = authentifier_utilisateur(db)
+
+    # Planification automatique des sauvegardes FTP pour toutes les villes
+    for ville in VILLES:
+        demarrer_sauvegarde_auto(ville, user_connecte.Login)
 
     # Redirection vers le menu principal selon le rôle de l'utilisateur
     menu_principal(db, user_connecte)

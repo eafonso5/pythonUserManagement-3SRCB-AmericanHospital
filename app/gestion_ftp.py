@@ -225,6 +225,21 @@ def _prochaine_sauvegarde_vendredi():
     return prochain
 
 
+def demarrer_sauvegarde_auto(ville, user_login):
+    """Planifie la prochaine sauvegarde automatique du vendredi à 20h00
+    SANS effectuer de sauvegarde immédiate. Appelée au démarrage de l'application."""
+    prochain = _prochaine_sauvegarde_vendredi()
+    delai = (prochain - datetime.now()).total_seconds()
+    timer = threading.Timer(delai, sauvegarder_vers_ftp, args=[ville, user_login, "automatic_saving"])
+    timer.daemon = True
+    timer.start()
+    logging.info(
+        f"PLANIFICATION AUTO : {ville} -> "
+        f"prochaine sauvegarde le {prochain.strftime('%A %d/%m/%Y à %H:%M')}"
+    )
+    return prochain
+
+
 def sauvegarder_vers_ftp(ville, user_login, prefixe="automatic_saving"):
     """Uploade le dossier local de la ville vers un dossier versionné sur le FTP,
     puis planifie automatiquement la prochaine exécution le vendredi à 20h00."""
