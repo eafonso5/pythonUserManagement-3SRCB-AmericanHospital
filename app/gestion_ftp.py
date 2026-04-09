@@ -1,4 +1,5 @@
 from ftplib import FTP
+import io
 import os
 import logging
 import threading
@@ -43,7 +44,7 @@ class FTPManager:
                 pass
 
     def _naviguer_vers(self, chemin_ftp):
-        """Navigue vers un chemin FTP absolu en créant les dossiers manquants."""
+        """Navigue vers un chemin FTP absolu en créant les dossiers manquants (usage upload uniquement)."""
         parties = [p for p in chemin_ftp.strip("/").split("/") if p]
 
         # Réinitialisation à la racine avant navigation pour éviter les doublons de chemin
@@ -55,6 +56,16 @@ class FTPManager:
                 # Le dossier n'existe pas : création avant d'y entrer
                 self.ftp.mkd(partie)
                 self.ftp.cwd(partie)
+
+    def _naviguer_lecture(self, chemin_ftp):
+        """Navigue vers un chemin FTP absolu en lecture seule. Lève une exception si un segment est introuvable."""
+        parties = [p for p in chemin_ftp.strip("/").split("/") if p]
+        self.ftp.cwd("/")
+        for partie in parties:
+            try:
+                self.ftp.cwd(partie)
+            except Exception:
+                raise FileNotFoundError(f"Chemin FTP introuvable : '{chemin_ftp}' (segment manquant : '{partie}')")
 
     def upload_versioning(self, local_path, ville):
         """Upload un fichier ou un dossier vers le FTP avec horodatage dans le nom."""
@@ -188,28 +199,59 @@ class FTPManager:
                 self._telecharger_dossier(entree, dossier_local)
             else:
                 chemin_local = os.path.join(dossier_local, entree)
+                # Téléchargement en mémoire d'abord pour éviter de créer un fichier vide en cas d'erreur
+                buf = io.BytesIO()
+                self.ftp.retrbinary(f"RETR {entree}", buf.write)
                 with open(chemin_local, "wb") as f:
-                    self.ftp.retrbinary(f"RETR {entree}", f.write)
+                    f.write(buf.getvalue())
 
         self.ftp.cwd("..")
 
     def telecharger_fichier(self, nom_fichier, ville, destination_locale):
-        """Télécharge un fichier ou un dossier depuis le dossier FTP de la ville vers le dossier local."""
+        """Télécharge un fichier ou un dossier depuis le dossier FTP de la ville vers le dossier local.
+        nom_fichier peut contenir des sous-chemins (ex: '20240101_1200_backup/patients/file.csv')."""
         if not self.ftp:
             return False
         try:
-            self._naviguer_vers(ville.lower())
-            if self._est_dossier_ftp(nom_fichier):
-                self._telecharger_dossier(nom_fichier, destination_locale)
+            # Décomposition du chemin : navigation jusqu'au répertoire parent, puis action sur la cible
+            parties = nom_fichier.replace("\\", "/").strip("/").split("/")
+            nom_cible = parties[-1]
+            sous_chemin = "/".join(parties[:-1])
+
+            chemin_ftp = ville.lower()
+            if sous_chemin:
+                chemin_ftp = f"{chemin_ftp}/{sous_chemin}"
+
+            # Navigation en lecture seule : lève une exception si le chemin parent n'existe pas sur le FTP
+            self._naviguer_lecture(chemin_ftp)
+
+            # Vérification explicite de l'existence de la cible dans le répertoire courant
+            entrees = [os.path.basename(e) for e in self.ftp.nlst()]
+            if nom_cible not in entrees:
+                msg = f"'{nom_fichier}' est introuvable sur le serveur FTP."
+                logging.error(f"DOWNLOAD FTP : {msg}")
+                print(f"\nErreur : {msg}")
+                return False
+
+            if self._est_dossier_ftp(nom_cible):
+                self._telecharger_dossier(nom_cible, destination_locale)
                 logging.info(f"DOWNLOAD FTP RÉUSSI (dossier) : {nom_fichier} -> {destination_locale}")
             else:
-                chemin_local = os.path.join(destination_locale, nom_fichier)
+                # Téléchargement en mémoire d'abord pour éviter de créer un fichier vide en cas d'erreur
+                buf = io.BytesIO()
+                self.ftp.retrbinary(f"RETR {nom_cible}", buf.write)
+                chemin_local = os.path.join(destination_locale, nom_cible)
                 with open(chemin_local, "wb") as f:
-                    self.ftp.retrbinary(f"RETR {nom_fichier}", f.write)
+                    f.write(buf.getvalue())
                 logging.info(f"DOWNLOAD FTP RÉUSSI (fichier) : {nom_fichier} -> {chemin_local}")
             return True
+        except FileNotFoundError as e:
+            logging.error(f"DOWNLOAD FTP : {e}")
+            print(f"\nErreur : {e}")
+            return False
         except Exception as e:
             logging.error(f"Erreur téléchargement FTP {nom_fichier}: {e}")
+            print(f"\nErreur lors du téléchargement de '{nom_fichier}' : {e}")
             return False
 
 
