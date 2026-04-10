@@ -100,6 +100,9 @@ class FileManager:
         """Déplace ou renomme un fichier ou dossier dans l'espace local."""
         src_path = os.path.join(self.base_path, source)
         dst_path = os.path.join(self.base_path, destination)
+        if not os.path.exists(src_path):
+            logger.error(f"Déplacement impossible : '{source}' n'existe pas (Ville: {self.ville})")
+            return False
         try:
             shutil.move(src_path, dst_path)
             logger.info(f"Déplacement : {source} -> {destination} (Ville: {self.ville})")
