@@ -1,5 +1,7 @@
 import logging
 import os
+import sys
+import subprocess
 
 from fonctions_gestion import (
     creer_utilisateur, consulter_liste_utilisateurs, rechercher_utilisateur,
@@ -12,6 +14,14 @@ VILLES = ["paris", "marseille", "rennes", "grenoble"]
 
 from gestion_fichiers import FileManager
 from gestion_ftp import FTPManager, sauvegarder_vers_ftp
+
+# Modules T3 : scans réseau/ports (importés comme espaces de noms pour éviter
+# les collisions entre fonctions homonymes des deux modules)
+import scan_ports
+import scan_reseau
+
+# Dossier du module app/ (pour retrouver les scripts de chat quel que soit le cwd)
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def afficher_menu_admin(user_connecte):
@@ -264,6 +274,167 @@ def menu_ftp(user_connecte):
             case _:
                 print("Choix invalide.")
 
+def menu_scan_ports():
+    """Sous-menu du scan de ports (T3). Réservé au Super Admin."""
+
+    while True:
+        print("\n--- SCAN DE PORTS ---")
+        print("1. Scanner un port unique")
+        print("2. Scanner une plage de ports")
+        print("3. Scanner tous les ports (1-65535)")
+        print("4. Comparer les performances (séquentiel vs threads)")
+        print("0. Retour")
+
+        choix = input("\nVotre choix : ").strip()
+
+        match choix:
+
+            case "1":
+                scan_ports.action_scan_port_unique()
+
+            case "2":
+                scan_ports.action_scan_plage()
+
+            case "3":
+                scan_ports.action_scan_tous()
+
+            case "4":
+                scan_ports.action_comparer_performances()
+
+            case "0":
+                break
+
+            case _:
+                print("Choix invalide.")
+
+
+def menu_scan_reseau():
+    """Sous-menu du scan réseau IPv4/IPv6 (T3). Réservé au Super Admin."""
+
+    while True:
+        print("\n--- SCAN RÉSEAU (IPv4 / IPv6) ---")
+        print("1. Scanner une IP unique")
+        print("2. Résoudre un nom de machine (DNS)")
+        print("3. Scanner une plage / un réseau (reverse DNS)")
+        print("4. Comparer les performances (séquentiel vs threads)")
+        print("0. Retour")
+
+        choix = input("\nVotre choix : ").strip()
+
+        match choix:
+
+            case "1":
+                scan_reseau.action_scan_ip()
+
+            case "2":
+                scan_reseau.action_scan_dns()
+
+            case "3":
+                scan_reseau.action_scan_plage()
+
+            case "4":
+                scan_reseau.action_comparer_performances()
+
+            case "0":
+                break
+
+            case _:
+                print("Choix invalide.")
+
+
+def menu_reseau(user_connecte):
+    """Menu de gestion réseau/système (T3). Réservé au Super Admin."""
+
+    while True:
+        print("\n" + "=" * 60)
+        print(" GESTION RÉSEAU / SYSTÈME (T3)")
+        print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
+        print("=" * 60)
+        print("\n1. Scan de ports")
+        print("2. Scan réseau (IPv4 / IPv6)")
+        print("0. Retour au menu principal")
+
+        choix = input("\nVotre choix : ").strip()
+
+        match choix:
+
+            case "1":
+                menu_scan_ports()
+
+            case "2":
+                menu_scan_reseau()
+
+            case "0":
+                break
+
+            case _:
+                print("Choix invalide.")
+
+
+def _lancer_fenetre(commande):
+    """Ouvre une commande dans un nouveau terminal (best-effort selon l'OS).
+       En cas d'échec, affiche la commande à lancer manuellement."""
+
+    try:
+        if sys.platform.startswith("win"):
+            # CREATE_NEW_CONSOLE ouvre une fenêtre de console séparée sous Windows
+            subprocess.Popen(commande, creationflags=subprocess.CREATE_NEW_CONSOLE)
+        elif sys.platform == "darwin":
+            # macOS : ouverture via l'application Terminal (best-effort)
+            subprocess.Popen(["open", "-a", "Terminal"] + commande)
+        else:
+            # Linux : tentative avec un émulateur de terminal courant
+            subprocess.Popen(["x-terminal-emulator", "-e"] + commande)
+        print("Fenêtre lancée. Vérifiez le nouveau terminal.")
+    except Exception as e:
+        print(f"\nLancement automatique impossible ({e}).")
+        print("Lancez cette commande manuellement dans un terminal :")
+        print("  " + " ".join(f'"{c}"' if " " in c else c for c in commande))
+
+
+def menu_chat(user_connecte):
+    """Lanceur du chat interne (T3). Accessible à tous les administrateurs.
+
+    Le chat fonctionne avec un serveur et jusqu'à 4 clients, chacun dans son
+    propre terminal. Ce menu affiche les commandes et propose de les lancer
+    automatiquement dans de nouvelles fenêtres."""
+
+    serveur = os.path.join(_APP_DIR, "chat_serveur.py")
+    client = os.path.join(_APP_DIR, "chat_client.py")
+
+    while True:
+        print("\n" + "=" * 60)
+        print(" CHAT INTERNE (T3)")
+        print("=" * 60)
+        print("\nLe chat nécessite UN serveur et de 1 à 4 clients, chacun dans")
+        print("son propre terminal. Commandes à lancer :")
+        print(f'\n  Serveur : python "{serveur}"')
+        print(f'  Client  : python "{client}" <pseudo>')
+        print("\n1. Lancer le serveur (nouvelle fenêtre)")
+        print("2. Lancer un client (nouvelle fenêtre)")
+        print("0. Retour au menu principal")
+
+        choix = input("\nVotre choix : ").strip()
+
+        match choix:
+
+            case "1":
+                _lancer_fenetre([sys.executable, serveur])
+
+            case "2":
+                pseudo = input("Pseudo du client : ").strip()
+                commande = [sys.executable, client]
+                if pseudo:
+                    commande.append(pseudo)
+                _lancer_fenetre(commande)
+
+            case "0":
+                break
+
+            case _:
+                print("Choix invalide.")
+
+
 def menu_administrateur(db, user_connecte):
     """Menu administrateur : gestion complète des utilisateurs."""
 
@@ -339,6 +510,11 @@ def menu_principal(db, user_connecte):
         if est_admin(user_connecte):
             print("2. Gestion des Fichiers")
             print("3. Gestion du FTP")
+            # Chat interne (T3) : accessible à tous les administrateurs
+            print("4. Chat interne (T3)")
+        # Scans réseau/ports (T3) : réservés au Super Admin (cf. sujet)
+        if est_superadmin(user_connecte):
+            print("5. Gestion Réseau / Scans (T3)")
         print("0. Quitter")
 
         choix = input("\nVotre choix : ").strip()
@@ -361,6 +537,14 @@ def menu_principal(db, user_connecte):
             case "3" if est_admin(user_connecte):
                 logging.info(f"Navigation Gestion Fichiers par {user_connecte.Login}")
                 menu_ftp(user_connecte)
+
+            case "4" if est_admin(user_connecte):
+                logging.info(f"Navigation Chat interne par {user_connecte.Login}")
+                menu_chat(user_connecte)
+
+            case "5" if est_superadmin(user_connecte):
+                logging.info(f"Navigation Gestion Réseau par {user_connecte.Login}")
+                menu_reseau(user_connecte)
 
             case "0":
                 print("\nAu revoir !")
