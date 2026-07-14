@@ -3,6 +3,8 @@ import threading
 import logging
 import os
 
+from exceptions_reseau import PseudoInvalideError
+
 # Configuration du serveur (surchargeable par variables d'environnement)
 HOTE = os.getenv("CHAT_HOST", "127.0.0.1")
 PORT = int(os.getenv("CHAT_PORT", "5050"))
@@ -72,6 +74,11 @@ class ServeurChat:
         except KeyboardInterrupt:
             print("\nArrêt du serveur.")
             logging.info("CHAT SERVEUR : arrêté par l'administrateur.")
+        except OSError as e:
+            # Erreur bas niveau sur le socket d'écoute : on s'arrête proprement
+            # (au lieu de laisser remonter une trace) ; le finally ferme le socket.
+            logging.error(f"CHAT SERVEUR : erreur socket, arrêt du serveur ({e})")
+            print(f"\nErreur réseau du serveur, arrêt : {e}")
         finally:
             self.socket_serveur.close()
 
@@ -82,8 +89,8 @@ class ServeurChat:
             # Le tout premier message envoyé par le client est son pseudo
             pseudo = client.recv(1024).decode(ENCODAGE).strip()
             if not pseudo:
-                client.close()
-                return
+                # Pseudo vide : on lève une exception explicite (refus de connexion)
+                raise PseudoInvalideError(f"Pseudo vide reçu depuis {adresse}, connexion refusée.")
 
             # Ajout du client à la liste partagée (sous verrou)
             with self.verrou:
@@ -111,6 +118,9 @@ class ServeurChat:
                     self.diffuser(f"{pseudo}: {message}", expediteur=client)
                     logging.info(f"CHAT MESSAGE : {pseudo}: {message}")
 
+        except PseudoInvalideError as e:
+            # Cas fonctionnel attendu : on journalise en avertissement, sans trace d'erreur
+            logging.warning(f"CHAT SERVEUR : {e}")
         except Exception as e:
             logging.error(f"CHAT SERVEUR : erreur avec {adresse} ({e})")
         finally:

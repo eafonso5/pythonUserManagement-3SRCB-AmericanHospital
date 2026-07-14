@@ -3,6 +3,8 @@ import time
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
+from exceptions_reseau import PlagePortsInvalideError
+
 # Logger du module, rattaché à la configuration définie dans main.py (operations.log)
 logger = logging.getLogger(__name__)
 
@@ -39,10 +41,26 @@ def scanner_un_port(hote, port, timeout=0.5):
         return False
 
 
+def _valider_plage(port_debut, port_fin):
+    """Valide une plage de ports. Lève PlagePortsInvalideError si elle est incorrecte.
+
+    Un port valide est compris entre 1 et 65535 et le début ne peut dépasser la fin."""
+    if not (1 <= port_debut <= 65535) or not (1 <= port_fin <= 65535):
+        raise PlagePortsInvalideError(
+            f"Ports hors limites (autorisé : 1-65535) : {port_debut}-{port_fin}."
+        )
+    if port_debut > port_fin:
+        raise PlagePortsInvalideError(
+            f"Le port de début ({port_debut}) est supérieur au port de fin ({port_fin})."
+        )
+
+
 def scanner_plage_sequentiel(hote, port_debut, port_fin, timeout=0.5):
     """Scanne une plage de ports SANS thread (un port après l'autre).
 
-    Retourne un tuple (liste_ports_ouverts, duree_en_secondes)."""
+    Retourne un tuple (liste_ports_ouverts, duree_en_secondes).
+    Lève PlagePortsInvalideError si la plage est invalide."""
+    _valider_plage(port_debut, port_fin)
     debut = time.perf_counter()
     ports_ouverts = []
 
@@ -61,7 +79,9 @@ def scanner_plage_sequentiel(hote, port_debut, port_fin, timeout=0.5):
 def scanner_plage_threads(hote, port_debut, port_fin, timeout=0.5, max_workers=100):
     """Scanne une plage de ports AVEC threads (ThreadPoolExecutor, bibliothèque standard).
 
-    Retourne un tuple (liste_ports_ouverts, duree_en_secondes)."""
+    Retourne un tuple (liste_ports_ouverts, duree_en_secondes).
+    Lève PlagePortsInvalideError si la plage est invalide."""
+    _valider_plage(port_debut, port_fin)
     debut = time.perf_counter()
     ports = range(port_debut, port_fin + 1)
     ports_ouverts = []
@@ -179,12 +199,16 @@ def action_scan_plage():
     port_debut = _demander_entier("Port de début", 1)
     port_fin = _demander_entier("Port de fin", 1024)
 
-    if port_debut > port_fin:
-        print("Erreur : le port de début doit être inférieur au port de fin.")
+    print(f"\nScan de {hote} sur les ports {port_debut} à {port_fin} en cours...")
+    try:
+        ports_ouverts, duree = scanner_plage_threads(hote, port_debut, port_fin)
+    except PlagePortsInvalideError as e:
+        print(f"\nErreur : {e}")
+        return
+    except KeyboardInterrupt:
+        print("\nScan interrompu par l'utilisateur.")
         return
 
-    print(f"\nScan de {hote} sur les ports {port_debut} à {port_fin} en cours...")
-    ports_ouverts, duree = scanner_plage_threads(hote, port_debut, port_fin)
     _afficher_ports_ouverts(ports_ouverts)
     print(f"\nTemps d'exécution : {duree:.3f} seconde(s).")
 
@@ -201,7 +225,12 @@ def action_scan_tous():
         return
 
     print(f"\nScan complet de {hote} en cours...")
-    ports_ouverts, duree = scanner_tous_les_ports(hote)
+    try:
+        ports_ouverts, duree = scanner_tous_les_ports(hote)
+    except KeyboardInterrupt:
+        print("\nScan interrompu par l'utilisateur.")
+        return
+
     _afficher_ports_ouverts(ports_ouverts)
     print(f"\nTemps d'exécution : {duree:.3f} seconde(s).")
 
@@ -216,14 +245,17 @@ def action_comparer_performances():
     port_debut = _demander_entier("Port de début", 1)
     port_fin = _demander_entier("Port de fin", 100)
 
-    if port_debut > port_fin:
-        print("Erreur : le port de début doit être inférieur au port de fin.")
-        return
-
     print(f"\nAnalyse comparative sur {hote} [{port_debut}-{port_fin}]...")
     print("(1) Scan séquentiel (sans thread)...")
     print("(2) Scan parallèle (avec threads)...")
-    resultat = comparer_performances(hote, port_debut, port_fin)
+    try:
+        resultat = comparer_performances(hote, port_debut, port_fin)
+    except PlagePortsInvalideError as e:
+        print(f"\nErreur : {e}")
+        return
+    except KeyboardInterrupt:
+        print("\nScan interrompu par l'utilisateur.")
+        return
 
     _afficher_ports_ouverts(resultat["ports_ouverts"])
     print("\n--- RÉSULTATS ---")

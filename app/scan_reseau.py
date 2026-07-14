@@ -6,6 +6,8 @@ import time
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
+from exceptions_reseau import ReseauInvalideError
+
 # Logger du module, rattaché à la configuration définie dans main.py (operations.log)
 logger = logging.getLogger(__name__)
 
@@ -114,8 +116,13 @@ def _lister_hotes(reseau_cidr):
     """Retourne la liste des IP à scanner à partir d'une notation CIDR.
 
     ip_network gère indifféremment l'IPv4 et l'IPv6. Pour une IP unique
-    (ex : '127.0.0.1'), on la scanne directement."""
-    reseau = ipaddress.ip_network(reseau_cidr, strict=False)
+    (ex : '127.0.0.1'), on la scanne directement.
+    Lève ReseauInvalideError si la notation est incorrecte."""
+    try:
+        reseau = ipaddress.ip_network(reseau_cidr, strict=False)
+    except ValueError as e:
+        # On transforme l'erreur bas niveau en exception métier explicite et claire
+        raise ReseauInvalideError(f"Notation réseau invalide : '{reseau_cidr}' ({e}).") from e
 
     # .hosts() exclut réseau et broadcast ; s'il n'y a qu'une adresse, on la garde
     hotes = list(reseau.hosts())
@@ -125,7 +132,8 @@ def _lister_hotes(reseau_cidr):
 
 
 def scanner_plage_sequentiel(reseau_cidr):
-    """Scanne une plage d'adresses SANS thread. Retourne (liste_resultats_vivants, duree)."""
+    """Scanne une plage d'adresses SANS thread. Retourne (liste_resultats_vivants, duree).
+    Lève ReseauInvalideError si la notation CIDR est invalide."""
     debut = time.perf_counter()
     hotes = _lister_hotes(reseau_cidr)
 
@@ -144,7 +152,8 @@ def scanner_plage_sequentiel(reseau_cidr):
 
 
 def scanner_plage_threads(reseau_cidr, max_workers=100):
-    """Scanne une plage d'adresses AVEC threads. Retourne (liste_resultats_vivants, duree)."""
+    """Scanne une plage d'adresses AVEC threads. Retourne (liste_resultats_vivants, duree).
+    Lève ReseauInvalideError si la notation CIDR est invalide."""
     debut = time.perf_counter()
     hotes = _lister_hotes(reseau_cidr)
 
@@ -257,14 +266,17 @@ def action_scan_plage():
     cidr = input("Réseau au format CIDR [127.0.0.1/32] : ").strip() or "127.0.0.1/32"
 
     try:
-        # Validation immédiate pour donner un message clair en cas de faute de frappe
+        # _lister_hotes valide la notation et lève ReseauInvalideError si besoin
         nb_hotes = len(_lister_hotes(cidr))
-    except ValueError as e:
-        print(f"\nErreur : notation réseau invalide ({e}).")
+        print(f"\nScan de {cidr} ({nb_hotes} hôte(s)) en cours...")
+        vivants, duree = scanner_plage_threads(cidr)
+    except ReseauInvalideError as e:
+        print(f"\nErreur : {e}")
+        return
+    except KeyboardInterrupt:
+        print("\nScan interrompu par l'utilisateur.")
         return
 
-    print(f"\nScan de {cidr} ({nb_hotes} hôte(s)) en cours...")
-    vivants, duree = scanner_plage_threads(cidr)
     _afficher_vivants(vivants)
     print(f"\nTemps d'exécution : {duree:.3f} seconde(s).")
 
@@ -278,14 +290,16 @@ def action_comparer_performances():
 
     try:
         nb_hotes = len(_lister_hotes(cidr))
-    except ValueError as e:
-        print(f"\nErreur : notation réseau invalide ({e}).")
+        print(f"\nAnalyse comparative sur {cidr} ({nb_hotes} hôte(s))...")
+        print("(1) Scan séquentiel (sans thread)...")
+        print("(2) Scan parallèle (avec threads)...")
+        resultat = comparer_performances_reseau(cidr)
+    except ReseauInvalideError as e:
+        print(f"\nErreur : {e}")
         return
-
-    print(f"\nAnalyse comparative sur {cidr} ({nb_hotes} hôte(s))...")
-    print("(1) Scan séquentiel (sans thread)...")
-    print("(2) Scan parallèle (avec threads)...")
-    resultat = comparer_performances_reseau(cidr)
+    except KeyboardInterrupt:
+        print("\nScan interrompu par l'utilisateur.")
+        return
 
     _afficher_vivants(resultat["vivants"])
     print("\n--- RÉSULTATS ---")
