@@ -1,3 +1,5 @@
+import getpass
+
 from classes import User
 from datetime import datetime, timedelta
 
@@ -569,8 +571,9 @@ def authentifier_utilisateur(db):
         if tentatives < 3:
             print(f"\n⚠ Il vous reste {tentatives} tentative(s)")
         
-        mot_de_passe = input("Mot de passe : ")
-        
+        # getpass masque la saisie (aucun caractère affiché) contrairement à input()
+        mot_de_passe = getpass.getpass("Mot de passe : ")
+
         # Vérification du mot de passe via le hash
         if user.verifier_mot_de_passe(mot_de_passe):
             print(f"\nAuthentification réussie. Bienvenue {user.Prenom} {user.Nom} !")
