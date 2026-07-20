@@ -39,12 +39,31 @@ def _largeur_terminal():
         return 80
 
 
-def _afficher_a_droite(texte):
-    """Affiche un texte justifié à droite du terminal (= messages de l'utilisateur).
+# Couleurs ANSI pour l'affichage
+_BLEU = "\033[94m"
+_RESET = "\033[0m"
 
-    Si le texte est plus large que le terminal, rjust le laisse tel quel :
-    il s'affiche alors normalement à gauche plutôt que d'être tronqué."""
-    print(texte.rjust(_largeur_terminal()))
+
+def _formater_reception(msg, mon_pseudo):
+    """Prépare l'affichage d'un message reçu du serveur.
+
+    Les messages de chat ont la forme « [ pseudo ] : texte ». Le préfixe
+    « [ pseudo ] : » est coloré en bleu. Retourne un tuple :
+      (texte_colore, longueur_visible, aligner_a_droite)
+    où longueur_visible ignore les codes couleur (invisibles) pour permettre un
+    alignement correct. Un message émis par nous-mêmes est aligné à droite ; les
+    messages système (arrivée/départ, liste des membres) restent à gauche."""
+    sep = " ] : "
+    if msg.startswith("[ ") and sep in msg:
+        i = msg.index(sep)
+        pseudo = msg[2:i]
+        texte = msg[i + len(sep):]
+        prefixe = f"[ {pseudo} ] :"
+        colore = f"{_BLEU}{prefixe}{_RESET} {texte}"
+        longueur_visible = len(prefixe) + 1 + len(texte)
+        return colore, longueur_visible, (pseudo == mon_pseudo)
+    # Message système : affiché tel quel, à gauche
+    return msg, len(msg), False
 
 
 class ClientChat:
@@ -60,8 +79,12 @@ class ClientChat:
         # Drapeau partagé indiquant si la connexion est active
         self.actif = True
 
+        # Notre pseudo (renseigné au démarrage) : sert à reconnaître nos propres
+        # messages renvoyés par le serveur, pour les aligner à droite.
+        self.pseudo = ""
+
         # Verrou pour éviter que l'affichage d'un message reçu (thread de réception)
-        # ne s'entrelace avec le réaffichage de nos propres messages.
+        # ne s'entrelace avec l'effacement de notre saisie clavier.
         self.verrou_affichage = threading.Lock()
 
     def connecter(self, pseudo):
@@ -85,9 +108,17 @@ class ClientChat:
                     print("\nConnexion au serveur perdue.")
                     self.actif = False
                     break
-                # Messages reçus : affichés à gauche (comportement par défaut)
+                # Affichage : pseudo en bleu ; à droite si c'est notre message,
+                # à gauche pour les messages des autres et les messages système.
+                colore, longueur, a_droite = _formater_reception(
+                    donnees.decode(ENCODAGE), self.pseudo
+                )
                 with self.verrou_affichage:
-                    print(donnees.decode(ENCODAGE))
+                    if a_droite:
+                        pad = max(0, _largeur_terminal() - longueur)
+                        print(" " * pad + colore)
+                    else:
+                        print(colore)
             except Exception:
                 self.actif = False
                 break
@@ -111,13 +142,14 @@ class ClientChat:
                 self.actif = False
                 break
 
-            # On réaffiche notre propre message justifié à droite pour le distinguer
-            # des messages reçus (à gauche). La ligne saisie (écho clavier) est
-            # d'abord effacée : \033[F remonte d'une ligne, \033[2K l'efface.
+            # On efface l'écho clavier local de notre saisie (\033[F remonte d'une
+            # ligne, \033[2K l'efface). Le message nous sera renvoyé par le serveur
+            # au format « [ pseudo ] : ... » et affiché à droite par le thread de
+            # réception : on n'a donc qu'une seule ligne, avec le pseudo.
             if message and message != "/quit":
                 with self.verrou_affichage:
                     sys.stdout.write("\033[F\033[2K")
-                    _afficher_a_droite(message)
+                    sys.stdout.flush()
 
             if message == "/quit":
                 self.actif = False
@@ -125,8 +157,11 @@ class ClientChat:
 
     def demarrer(self, pseudo):
         """Lance le client : connexion, thread de réception, boucle d'envoi."""
-        # Nécessaire pour que l'alignement à droite fonctionne sous Windows
+        # Nécessaire pour que les couleurs et l'alignement fonctionnent sous Windows
         _activer_ansi_windows()
+
+        # Mémorisé pour reconnaître nos propres messages (affichés à droite)
+        self.pseudo = pseudo
 
         if not self.connecter(pseudo):
             return

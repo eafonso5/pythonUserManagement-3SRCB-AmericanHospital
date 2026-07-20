@@ -50,10 +50,22 @@ class ServeurChat:
         print(f"En attente de connexions (max {MAX_CLIENTS} clients)... [Ctrl+C pour arrêter]")
         logging.info(f"CHAT SERVEUR : démarré sur {self.hote}:{self.port}")
 
+        # Timeout sur le socket d'écoute : accept() rend la main périodiquement,
+        # ce qui permet à Python de traiter le Ctrl+C (KeyboardInterrupt), y compris
+        # sous Windows où un accept() bloquant n'est pas interrompu par le signal.
+        self.socket_serveur.settimeout(1.0)
+
         try:
             while True:
-                # Attente bloquante d'un nouveau client
-                client, adresse = self.socket_serveur.accept()
+                # Attente d'un nouveau client, avec réveil périodique pour le Ctrl+C
+                try:
+                    client, adresse = self.socket_serveur.accept()
+                except socket.timeout:
+                    continue
+
+                # Le socket accepté hérite du timeout du serveur : on le repasse en
+                # mode bloquant pour la réception normale des messages du client.
+                client.settimeout(None)
 
                 # Refus si le nombre maximum de clients est déjà atteint
                 with self.verrou:
@@ -140,11 +152,10 @@ class ServeurChat:
                     break
 
                 if message:
-                    # Diffusion à tous les AUTRES clients, préfixée par le pseudo :
-                    # chaque destinataire voit ainsi qui a envoyé le message. On exclut
-                    # l'expéditeur pour ne pas lui réafficher sa propre ligne (déjà
-                    # visible via l'écho clavier de son terminal).
-                    self.diffuser(f"{pseudo}: {message}", expediteur=client)
+                    # Diffusion à TOUS les clients (expéditeur inclus) au format
+                    # « [ pseudo ] : message ». Chaque client colore le pseudo en bleu
+                    # et aligne ses propres messages à droite, ceux des autres à gauche.
+                    self.diffuser(f"[ {pseudo} ] : {message}", expediteur=None)
                     logging.info(f"CHAT MESSAGE : {pseudo}: {message}")
 
         except PseudoInvalideError as e:

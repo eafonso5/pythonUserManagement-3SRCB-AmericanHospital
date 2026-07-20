@@ -60,11 +60,14 @@ def _construire_commande_ping(ip):
         pass
 
     if _SYSTEME == "windows":
-        # -n 1 : un seul envoi, -w 1000 : timeout en millisecondes
-        return ["ping", "-n", "1", "-w", "1000"] + option_ipv6 + [str(ip)]
+        # -n 2 : deux envois (le 1er paquet vers un hôte jamais contacté est souvent
+        # perdu pendant la résolution ARP/ND, ce qui donnait de faux « injoignable »),
+        # -w 1000 : timeout par paquet en millisecondes
+        return ["ping", "-n", "2", "-w", "1000"] + option_ipv6 + [str(ip)]
     else:
-        # -c 1 : un seul envoi, -W 1 : timeout en secondes (Linux/Mac)
-        return ["ping", "-c", "1", "-W", "1"] + option_ipv6 + [str(ip)]
+        # -c 2 : deux envois (idem, robustesse au 1er paquet perdu),
+        # -W 1 : timeout par paquet en secondes (Linux/Mac)
+        return ["ping", "-c", "2", "-W", "1"] + option_ipv6 + [str(ip)]
 
 
 # Marqueurs présents uniquement dans une VRAIE réponse d'écho ICMP.

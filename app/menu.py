@@ -351,26 +351,34 @@ def menu_scan_reseau():
 
 
 def menu_reseau(user_connecte):
-    """Menu de gestion réseau/système (T3). Réservé au Super Admin."""
+    """Menu « Scan ports et réseaux » (T3).
+
+    Les scans de ports/réseau sont réservés au Super Admin (cf. sujet) ;
+    le chat interne reste accessible à tous les administrateurs."""
 
     while True:
         print("\n" + "=" * 60)
-        print(" GESTION RÉSEAU / SYSTÈME (T3)")
+        print(" SCAN PORTS ET RÉSEAUX (T3)")
         print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
         print("=" * 60)
-        print("\n1. Scan de ports")
-        print("2. Scan réseau (IPv4 / IPv6)")
+        if est_superadmin(user_connecte):
+            print("\n1. Scan de ports")
+            print("2. Scan réseau (IPv4 / IPv6)")
+        print("3. Chat interne")
         print("0. Retour au menu principal")
 
         choix = input("\nVotre choix : ").strip()
 
         match choix:
 
-            case "1":
+            case "1" if est_superadmin(user_connecte):
                 menu_scan_ports()
 
-            case "2":
+            case "2" if est_superadmin(user_connecte):
                 menu_scan_reseau()
+
+            case "3":
+                menu_chat(user_connecte)
 
             case "0":
                 break
@@ -504,8 +512,39 @@ def menu_utilisateur(db, user_connecte):
                 print("\nChoix invalide. Veuillez réessayer.")
 
 
+def menu_fichiers(user_connecte):
+    """Sous-menu « Gestion des fichiers » : fichiers locaux et sauvegarde FTP."""
+
+    while True:
+        print("\n" + "=" * 60)
+        print(" GESTION DES FICHIERS")
+        print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
+        print("=" * 60)
+        print("\n1. Fichiers locaux")
+        print("2. Sauvegarde / synchronisation FTP")
+        print("0. Retour au menu principal")
+
+        choix = input("\nVotre choix : ").strip()
+
+        match choix:
+
+            case "1":
+                logging.info(f"Navigation Fichiers locaux par {user_connecte.Login}")
+                menu_local(user_connecte)
+
+            case "2":
+                logging.info(f"Navigation FTP par {user_connecte.Login}")
+                menu_ftp(user_connecte)
+
+            case "0":
+                break
+
+            case _:
+                print("Choix invalide.")
+
+
 def menu_principal(db, user_connecte):
-    """Pré-menu principal permettant de naviguer entre les grandes sections."""
+    """Menu principal permettant de naviguer entre les grandes sections."""
 
     while True:
         print("\n" + "=" * 60)
@@ -513,16 +552,11 @@ def menu_principal(db, user_connecte):
         print(f" Connecté : {user_connecte.Login} ({user_connecte.Role})")
         print("=" * 60)
 
-        # L'accès à la gestion des fichiers est réservé aux administrateurs
-        print("\n1. Gestion des Utilisateurs")
+        # Fichiers et scans réseau/ports sont réservés aux administrateurs
+        print("\n1. Gestion des utilisateurs")
         if est_admin(user_connecte):
-            print("2. Gestion des Fichiers")
-            print("3. Gestion du FTP")
-            # Chat interne (T3) : accessible à tous les administrateurs
-            print("4. Chat interne (T3)")
-        # Scans réseau/ports (T3) : réservés au Super Admin (cf. sujet)
-        if est_superadmin(user_connecte):
-            print("5. Gestion Réseau / Scans (T3)")
+            print("2. Gestion des fichiers")
+            print("3. Scan ports et réseaux")
         print("0. Quitter")
 
         choix = input("\nVotre choix : ").strip()
@@ -540,18 +574,10 @@ def menu_principal(db, user_connecte):
 
             case "2" if est_admin(user_connecte):
                 logging.info(f"Navigation Gestion Fichiers par {user_connecte.Login}")
-                menu_local(user_connecte)
+                menu_fichiers(user_connecte)
 
             case "3" if est_admin(user_connecte):
-                logging.info(f"Navigation Gestion Fichiers par {user_connecte.Login}")
-                menu_ftp(user_connecte)
-
-            case "4" if est_admin(user_connecte):
-                logging.info(f"Navigation Chat interne par {user_connecte.Login}")
-                menu_chat(user_connecte)
-
-            case "5" if est_superadmin(user_connecte):
-                logging.info(f"Navigation Gestion Réseau par {user_connecte.Login}")
+                logging.info(f"Navigation Scan ports et réseaux par {user_connecte.Login}")
                 menu_reseau(user_connecte)
 
             case "0":
