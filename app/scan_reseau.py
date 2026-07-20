@@ -21,9 +21,9 @@ def _log_dimension_pool(n_taches, max_workers, workers, verbose):
         return
     print(f"[verbose] {n_taches} hôte(s), max_workers demandé={max_workers} "
           f"-> {workers} thread(s) effectif(s)")
-    if workers > 2000:
-        print(f"[verbose] ATTENTION : {workers} threads = autant de processus 'ping' "
-              f"potentiellement simultanés ; risque de saturation.")
+    if workers > 256:
+        print(f"[verbose] ATTENTION : {workers} processus 'ping' simultanés demandés ; "
+              f"au-delà de ~128-256, beaucoup de pings échouent (faux 'injoignables').")
 
 
 def _log_echec_pool(workers, exc, verbose):
@@ -221,7 +221,7 @@ def scanner_plage_sequentiel(reseau_cidr):
     return vivants, duree
 
 
-def scanner_plage_threads(reseau_cidr, max_workers=512, verbose=False):
+def scanner_plage_threads(reseau_cidr, max_workers=128, verbose=False):
     """Scanne une plage d'adresses AVEC threads. Retourne (liste_resultats_vivants, duree).
     Lève ReseauInvalideError si la notation CIDR est invalide.
 
