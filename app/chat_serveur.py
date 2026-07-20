@@ -59,11 +59,19 @@ class ServeurChat:
                 with self.verrou:
                     nb_clients = len(self.clients)
                 if nb_clients >= MAX_CLIENTS:
+                    # On consomme d'abord le pseudo déjà envoyé par le client : fermer
+                    # la socket en laissant des données non lues provoque un RST (sous
+                    # Windows notamment), et le client ne verrait jamais ce message.
+                    try:
+                        client.settimeout(1.0)
+                        client.recv(1024)
+                    except OSError:
+                        pass
                     try:
                         client.send("Serveur plein, réessayez plus tard.".encode(ENCODAGE))
-                        client.close()
-                    except Exception:
+                    except OSError:
                         pass
+                    client.close()
                     logging.warning(f"CHAT SERVEUR : connexion refusée (serveur plein) {adresse}")
                     continue
 
@@ -85,17 +93,35 @@ class ServeurChat:
     def gerer_client(self, client, adresse):
         """Gère un client : réception du pseudo puis boucle de réception des messages."""
         pseudo = None
+        enregistre = False  # True une fois le client réellement ajouté à la liste
         try:
             # Le tout premier message envoyé par le client est son pseudo
-            pseudo = client.recv(1024).decode(ENCODAGE).strip()
-            if not pseudo:
+            pseudo_recu = client.recv(1024).decode(ENCODAGE).strip()
+            if not pseudo_recu:
                 # Pseudo vide : on lève une exception explicite (refus de connexion)
                 raise PseudoInvalideError(f"Pseudo vide reçu depuis {adresse}, connexion refusée.")
 
-            # Ajout du client à la liste partagée (sous verrou)
+            # Vérification d'unicité ET réservation du pseudo dans le MÊME verrou,
+            # pour éviter que deux clients simultanés obtiennent le même pseudo.
             with self.verrou:
-                self.clients[client] = pseudo
+                pseudo_deja_pris = pseudo_recu in self.clients.values()
+                if not pseudo_deja_pris:
+                    self.clients[client] = pseudo_recu
+                    enregistre = True
 
+            if pseudo_deja_pris:
+                # Pseudo en doublon : on prévient le client puis on refuse la connexion
+                try:
+                    client.send(
+                        f"Pseudo « {pseudo_recu} » déjà utilisé, choisissez-en un autre.".encode(ENCODAGE)
+                    )
+                except Exception:
+                    pass
+                raise PseudoInvalideError(
+                    f"Pseudo « {pseudo_recu} » déjà connecté : connexion de {adresse} refusée."
+                )
+
+            pseudo = pseudo_recu
             logging.info(f"CHAT SERVEUR : '{pseudo}' connecté depuis {adresse}")
             self.diffuser(f"*** {pseudo} a rejoint la discussion ***", expediteur=None)
             self.envoyer_liste_membres()
@@ -114,7 +140,10 @@ class ServeurChat:
                     break
 
                 if message:
-                    # Diffusion à tous les autres clients, préfixée par le pseudo
+                    # Diffusion à tous les AUTRES clients, préfixée par le pseudo :
+                    # chaque destinataire voit ainsi qui a envoyé le message. On exclut
+                    # l'expéditeur pour ne pas lui réafficher sa propre ligne (déjà
+                    # visible via l'écho clavier de son terminal).
                     self.diffuser(f"{pseudo}: {message}", expediteur=client)
                     logging.info(f"CHAT MESSAGE : {pseudo}: {message}")
 
@@ -124,7 +153,10 @@ class ServeurChat:
         except Exception as e:
             logging.error(f"CHAT SERVEUR : erreur avec {adresse} ({e})")
         finally:
-            self.retirer_client(client, pseudo)
+            # On n'annonce le départ que si le client avait bien été enregistré :
+            # un pseudo refusé (vide ou en doublon) ne doit pas déclencher de message
+            # « a quitté » ni supprimer le client légitime qui portait ce pseudo.
+            self.retirer_client(client, pseudo if enregistre else None)
 
     def diffuser(self, message, expediteur):
         """Envoie un message à tous les clients connectés, sauf à l'expéditeur lui-même.

@@ -29,11 +29,19 @@ def scanner_un_port(hote, port, timeout=0.5):
     """Teste un port TCP unique. Retourne True si le port est ouvert, False sinon.
 
     On utilise connect_ex() qui renvoie 0 en cas de succès (port ouvert)
-    au lieu de lever une exception, ce qui simplifie le scan de masse."""
+    au lieu de lever une exception, ce qui simplifie le scan de masse.
+
+    getaddrinfo choisit automatiquement la bonne famille d'adresse (AF_INET
+    pour l'IPv4, AF_INET6 pour l'IPv6), ce qui rend le scan compatible IPv6
+    aussi bien pour une IP littérale (ex : ::1) que pour un nom de machine."""
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        # On récupère la famille/protocole adaptés à l'hôte (IPv4 ou IPv6)
+        famille, type_sock, proto, _, adresse = socket.getaddrinfo(
+            hote, port, type=socket.SOCK_STREAM
+        )[0]
+        with socket.socket(famille, type_sock, proto) as sock:
             sock.settimeout(timeout)
-            resultat = sock.connect_ex((hote, port))
+            resultat = sock.connect_ex(adresse)
             return resultat == 0
     except Exception as e:
         # Erreur de résolution, hôte injoignable, etc. : le port est considéré fermé
@@ -136,6 +144,66 @@ def comparer_performances(hote, port_debut, port_fin, timeout=0.5):
 
 
 # ---------------------------------------------------------------------------
+# Scan UDP (le sujet demande de ne pas se limiter au TCP)
+# ---------------------------------------------------------------------------
+
+def scanner_un_port_udp(hote, port, timeout=1.0):
+    """Teste un port UDP unique. Compatible IPv4 et IPv6 via getaddrinfo.
+
+    UDP est un protocole sans connexion : l'interprétation diffère du TCP.
+      - une réponse reçue          -> 'ouvert'
+      - une erreur ICMP            -> 'fermé' (port unreachable)
+      - aucune réponse (timeout)   -> 'ouvert|filtré' (indéterminé, propre à UDP)
+    Retourne l'une de ces chaînes de statut ('erreur' en cas d'échec technique)."""
+    try:
+        famille, type_sock, proto, _, adresse = socket.getaddrinfo(
+            hote, port, type=socket.SOCK_DGRAM
+        )[0]
+        with socket.socket(famille, type_sock, proto) as sock:
+            sock.settimeout(timeout)
+            # Datagramme vide : on cherche seulement à provoquer une réaction
+            sock.sendto(b"", adresse)
+            try:
+                sock.recvfrom(1024)
+                return "ouvert"          # le service a répondu
+            except socket.timeout:
+                return "ouvert|filtré"   # silence : impossible de trancher en UDP
+            except OSError:
+                return "fermé"           # ICMP port unreachable reçu
+    except Exception as e:
+        logger.error(f"SCAN UDP : erreur sur {hote}:{port} ({e})")
+        return "erreur"
+
+
+def scanner_plage_udp_threads(hote, port_debut, port_fin, timeout=1.0, max_workers=100):
+    """Scanne une plage de ports UDP AVEC threads.
+
+    Retourne (liste de tuples (port, statut) hors 'fermé'/'erreur', duree).
+    Lève PlagePortsInvalideError si la plage est invalide."""
+    _valider_plage(port_debut, port_fin)
+    debut = time.perf_counter()
+    ports = range(port_debut, port_fin + 1)
+    resultats = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futurs = {port: executor.submit(scanner_un_port_udp, hote, port, timeout)
+                  for port in ports}
+        for port, futur in futurs.items():
+            statut = futur.result()
+            # On ignore les ports clairement fermés et les erreurs techniques
+            if statut not in ("fermé", "erreur"):
+                resultats.append((port, statut))
+
+    resultats.sort()
+    duree = time.perf_counter() - debut
+    logger.info(
+        f"SCAN UDP THREADS : {hote} [{port_debut}-{port_fin}] -> "
+        f"{len(resultats)} port(s) non fermé(s) en {duree:.3f}s"
+    )
+    return resultats, duree
+
+
+# ---------------------------------------------------------------------------
 # Fonctions interactives appelées depuis le menu (saisie + affichage)
 # ---------------------------------------------------------------------------
 
@@ -184,11 +252,14 @@ def action_scan_port_unique():
     hote = _demander_hote()
     port = _demander_entier("Numéro du port", 80)
 
+    debut = time.perf_counter()
     ouvert = scanner_un_port(hote, port)
+    duree = time.perf_counter() - debut
     if ouvert:
         print(f"\n✓ Le port {port} ({nom_service(port)}) est OUVERT sur {hote}.")
     else:
         print(f"\n✗ Le port {port} est fermé ou filtré sur {hote}.")
+    print(f"\nTemps d'exécution : {duree:.3f} seconde(s).")
 
 
 def action_scan_plage():
@@ -262,3 +333,52 @@ def action_comparer_performances():
     print(f"Séquentiel (sans thread) : {resultat['duree_sequentiel']:.3f} s")
     print(f"Parallèle  (avec threads) : {resultat['duree_threads']:.3f} s")
     print(f"Gain de performance       : x{resultat['gain']:.1f} plus rapide")
+
+
+def action_scan_port_udp():
+    """Scan d'un seul port UDP choisi par l'utilisateur."""
+    print("\n--- SCAN D'UN PORT UNIQUE (UDP) ---")
+    _avertissement()
+    print("Note : en UDP, l'absence de réponse est ambiguë (ouvert ou filtré).")
+    hote = _demander_hote()
+    port = _demander_entier("Numéro du port", 53)
+
+    debut = time.perf_counter()
+    statut = scanner_un_port_udp(hote, port)
+    duree = time.perf_counter() - debut
+
+    print(f"\nPort UDP {port} ({nom_service(port)}) sur {hote} : {statut.upper()}")
+    print(f"\nTemps d'exécution : {duree:.3f} seconde(s).")
+
+
+def action_scan_plage_udp():
+    """Scan d'une plage de ports UDP (avec threads)."""
+    print("\n--- SCAN D'UNE PLAGE DE PORTS (UDP) ---")
+    _avertissement()
+    print("Note : en UDP, seuls les ports clairement fermés sont écartés ;")
+    print("les autres sont 'ouvert' ou 'ouvert|filtré' (indéterminé).")
+    hote = _demander_hote()
+    port_debut = _demander_entier("Port de début", 1)
+    port_fin = _demander_entier("Port de fin", 1024)
+
+    print(f"\nScan UDP de {hote} sur les ports {port_debut} à {port_fin} en cours...")
+    try:
+        resultats, duree = scanner_plage_udp_threads(hote, port_debut, port_fin)
+    except PlagePortsInvalideError as e:
+        print(f"\nErreur : {e}")
+        return
+    except KeyboardInterrupt:
+        print("\nScan interrompu par l'utilisateur.")
+        return
+
+    if not resultats:
+        print("\nAucun port UDP ouvert/filtré détecté (tous fermés).")
+    else:
+        print(f"\n{len(resultats)} port(s) UDP non fermé(s) :")
+        print("-" * 50)
+        print(f"{'Port':<8} | {'Statut':<15} | Service")
+        print("-" * 50)
+        for port, statut in resultats:
+            print(f"{port:<8} | {statut:<15} | {nom_service(port)}")
+        print("-" * 50)
+    print(f"\nTemps d'exécution : {duree:.3f} seconde(s).")

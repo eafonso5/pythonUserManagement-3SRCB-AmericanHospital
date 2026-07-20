@@ -279,10 +279,12 @@ def menu_scan_ports():
 
     while True:
         print("\n--- SCAN DE PORTS ---")
-        print("1. Scanner un port unique")
-        print("2. Scanner une plage de ports")
-        print("3. Scanner tous les ports (1-65535)")
-        print("4. Comparer les performances (séquentiel vs threads)")
+        print("1. Scanner un port unique (TCP)")
+        print("2. Scanner une plage de ports (TCP)")
+        print("3. Scanner tous les ports 1-65535 (TCP)")
+        print("4. Scanner un port unique (UDP)")
+        print("5. Scanner une plage de ports (UDP)")
+        print("6. Comparer les performances (séquentiel vs threads)")
         print("0. Retour")
 
         choix = input("\nVotre choix : ").strip()
@@ -299,6 +301,12 @@ def menu_scan_ports():
                 scan_ports.action_scan_tous()
 
             case "4":
+                scan_ports.action_scan_port_udp()
+
+            case "5":
+                scan_ports.action_scan_plage_udp()
+
+            case "6":
                 scan_ports.action_comparer_performances()
 
             case "0":

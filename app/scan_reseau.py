@@ -227,13 +227,16 @@ def action_scan_ip():
     ip = input("Adresse IP à scanner [127.0.0.1] : ").strip() or "127.0.0.1"
 
     print(f"\nTest de {ip} en cours...")
+    debut = time.perf_counter()
     resultat = scanner_ip(ip)
+    duree = time.perf_counter() - debut
 
     if resultat["vivant"]:
         nom = resultat["nom"] if resultat["nom"] else "(nom inconnu)"
         print(f"\n✓ {ip} répond (vivant). Nom : {nom}")
     else:
         print(f"\n✗ {ip} ne répond pas (injoignable ou ping bloqué).")
+    print(f"\nTemps d'exécution : {duree:.3f} seconde(s).")
 
 
 def action_scan_dns():
@@ -242,10 +245,13 @@ def action_scan_dns():
     nom = input("Nom de machine à résoudre [localhost] : ").strip() or "localhost"
 
     print(f"\nRésolution DNS de '{nom}' en cours...")
+    debut = time.perf_counter()
     adresses = resoudre_dns(nom)
+    duree = time.perf_counter() - debut
 
     if not adresses:
         print(f"\n✗ Impossible de résoudre '{nom}'.")
+        print(f"\nTemps d'exécution : {duree:.3f} seconde(s).")
         return
 
     print(f"\n✓ '{nom}' résolu en {len(adresses)} adresse(s) :")
@@ -256,6 +262,7 @@ def action_scan_dns():
             print(f"  - {ip}  (IPv{version})")
         except ValueError:
             print(f"  - {ip}")
+    print(f"\nTemps d'exécution : {duree:.3f} seconde(s).")
 
 
 def action_scan_plage():
