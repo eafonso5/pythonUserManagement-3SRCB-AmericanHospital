@@ -11,11 +11,88 @@ logger = logging.getLogger(__name__)
 # Cible par défaut : la machine locale (scan autorisé sans risque légal)
 HOTE_DEFAUT = "127.0.0.1"
 
-# Quelques ports connus pour enrichir l'affichage des résultats
+# Ports des protocoles bien connus (IANA well-known + services répandus),
+# utilisés pour enrichir l'affichage des résultats de scan.
 SERVICES_CONNUS = {
-    20: "FTP-data", 21: "FTP", 22: "SSH", 23: "Telnet", 25: "SMTP",
-    53: "DNS", 80: "HTTP", 110: "POP3", 143: "IMAP", 443: "HTTPS",
-    445: "SMB", 3306: "MySQL", 3389: "RDP", 5432: "PostgreSQL",
+    # Services système et historiques (0-99)
+    1: "TCPMUX", 7: "Echo", 9: "Discard", 13: "Daytime", 17: "QOTD",
+    19: "CHARGEN", 20: "FTP-data", 21: "FTP", 22: "SSH", 23: "Telnet",
+    25: "SMTP", 37: "Time", 43: "WHOIS", 49: "TACACS", 53: "DNS",
+    67: "DHCP (serveur)", 68: "DHCP (client)", 69: "TFTP", 70: "Gopher",
+    79: "Finger", 80: "HTTP", 88: "Kerberos",
+    # Messagerie, annuaire, gestion (100-599)
+    102: "ISO-TSAP", 110: "POP3", 111: "RPCbind", 113: "Ident", 119: "NNTP",
+    123: "NTP", 135: "MS-RPC", 137: "NetBIOS-NS", 138: "NetBIOS-DGM",
+    139: "NetBIOS-SSN", 143: "IMAP", 161: "SNMP", 162: "SNMP-Trap",
+    179: "BGP", 194: "IRC", 264: "BGMP", 389: "LDAP", 443: "HTTPS",
+    445: "SMB", 465: "SMTPS", 500: "ISAKMP/IKE", 514: "Syslog", 515: "LPD/LPR",
+    520: "RIP", 521: "RIPng", 540: "UUCP", 546: "DHCPv6 (client)",
+    547: "DHCPv6 (serveur)", 554: "RTSP", 587: "SMTP (submission)",
+    593: "MS-RPC/HTTP",
+    # Sécurité, bases de données, VPN, services applicatifs (600-9999)
+    623: "IPMI", 636: "LDAPS", 989: "FTPS-data", 990: "FTPS", 993: "IMAPS",
+    995: "POP3S", 1080: "SOCKS", 1194: "OpenVPN", 1433: "MS-SQL",
+    1434: "MS-SQL-Monitor", 1521: "Oracle", 1701: "L2TP", 1723: "PPTP",
+    1812: "RADIUS (auth)", 1813: "RADIUS (compta)", 1883: "MQTT",
+    2049: "NFS", 2082: "cPanel", 2083: "cPanel (SSL)", 2181: "ZooKeeper",
+    2375: "Docker", 2376: "Docker (TLS)", 3128: "Squid-Proxy",
+    3268: "LDAP-GC", 3269: "LDAP-GC (SSL)", 3306: "MySQL", 3389: "RDP",
+    3690: "SVN", 4369: "Erlang-EPMD", 5000: "UPnP/Flask", 5060: "SIP",
+    5061: "SIP-TLS", 5222: "XMPP (client)", 5269: "XMPP (serveur)",
+    5353: "mDNS", 5432: "PostgreSQL", 5601: "Kibana", 5672: "AMQP",
+    5683: "CoAP", 5900: "VNC", 5984: "CouchDB", 6379: "Redis",
+    6443: "Kubernetes-API", 6667: "IRC", 7001: "WebLogic", 8000: "HTTP-alt",
+    8080: "HTTP-Proxy", 8443: "HTTPS-alt", 8883: "MQTT (TLS)", 9000: "SonarQube",
+    9042: "Cassandra", 9092: "Kafka", 9200: "Elasticsearch",
+    9300: "Elasticsearch (noeud)",
+    # Ports hauts courants (>=10000)
+    11211: "Memcached", 15672: "RabbitMQ-Mgmt", 27017: "MongoDB",
+    27018: "MongoDB (shard)", 50000: "SAP/DB2",
+    # Compléments : autres protocoles et services répandus
+    2: "CompressNet", 11: "SYSTAT", 15: "NETSTAT", 42: "WINS", 101: "Hostname",
+    104: "DICOM", 109: "POP2", 115: "SFTP (simple)", 177: "XDMCP", 199: "SMUX",
+    311: "AppleShare-Admin", 383: "HP-Alarm-Mgr", 427: "SLP", 434: "Mobile-IP",
+    444: "SNPP", 464: "Kerberos-kpasswd", 497: "Retrospect", 512: "rexec",
+    513: "rlogin", 517: "talk", 518: "ntalk", 523: "IBM-DB2", 524: "NetWare-NCP",
+    543: "klogin", 544: "kshell", 548: "AFP", 563: "NNTPS", 631: "IPP",
+    639: "MSDP", 646: "LDP", 749: "Kerberos-adm", 783: "SpamAssassin",
+    830: "NETCONF/SSH", 843: "Flash-Policy", 853: "DNS-over-TLS", 860: "iSCSI",
+    873: "rsync", 902: "VMware-ESXi", 992: "Telnet-TLS", 1025: "NFS/IIS",
+    1099: "Java-RMI", 1241: "Nessus", 1311: "Dell-OpenManage", 1352: "Lotus-Notes",
+    1414: "IBM-MQ", 1494: "Citrix-ICA", 1719: "H.323-RAS", 1720: "H.323",
+    1755: "MS-Media", 1801: "MSMQ", 1863: "MSN", 1900: "SSDP", 1935: "RTMP",
+    2000: "Cisco-SCCP", 2222: "EtherNet/IP", 2379: "etcd (client)",
+    2380: "etcd (pair)", 2404: "IEC-104 (SCADA)", 2427: "MGCP", 2483: "Oracle-DB",
+    2484: "Oracle-DB (SSL)", 2525: "SMTP-alt", 2575: "HL7", 2598: "Citrix-CGP",
+    2601: "Zebra", 2604: "OSPF-Quagga", 2638: "Sybase", 2947: "GPSD",
+    3000: "Grafana/Node-dev", 3050: "Firebird", 3260: "iSCSI-Target",
+    3283: "Apple-Remote-Desktop", 3299: "SAP-Router", 3478: "STUN/TURN",
+    3493: "NUT-UPS", 3544: "Teredo", 3632: "distcc", 3689: "DAAP",
+    3702: "WS-Discovery", 3868: "Diameter", 4040: "Spark-UI", 4500: "IPsec-NAT-T",
+    4662: "eMule", 4789: "VXLAN", 4840: "OPC-UA", 4843: "OPC-UA (TLS)",
+    4899: "Radmin", 5001: "iperf", 5004: "RTP", 5005: "RTP-ctrl",
+    5044: "Logstash-Beats", 5190: "AIM/ICQ", 5280: "XMPP-BOSH",
+    5349: "STUN/TURN (TLS)", 5351: "NAT-PMP", 5355: "LLMNR", 5357: "WSDAPI",
+    5555: "ADB", 5631: "pcAnywhere (data)", 5632: "pcAnywhere", 5666: "Nagios-NRPE",
+    5671: "AMQPS", 5684: "CoAP (DTLS)", 5701: "Hazelcast", 5800: "VNC-HTTP",
+    5938: "TeamViewer", 5985: "WinRM-HTTP", 5986: "WinRM-HTTPS", 6000: "X11",
+    6514: "Syslog-TLS", 6566: "SANE", 6600: "MPD", 6697: "IRC (TLS)",
+    6881: "BitTorrent", 6969: "BitTorrent-Tracker", 7000: "Cassandra (noeud)",
+    7070: "RealServer", 7199: "Cassandra-JMX", 7474: "Neo4j (HTTP)",
+    7547: "TR-069-CWMP", 7680: "Windows-Update", 7687: "Neo4j-Bolt",
+    8005: "Tomcat (arret)", 8009: "AJP", 8020: "Hadoop-NameNode",
+    8086: "InfluxDB", 8088: "Hadoop-YARN", 8091: "Couchbase", 8140: "Puppet",
+    8291: "MikroTik-Winbox", 8333: "Bitcoin", 8384: "Syncthing", 8500: "Consul",
+    8530: "WSUS", 8531: "WSUS (SSL)", 8728: "MikroTik-API", 8888: "Jupyter",
+    9001: "Tor", 9090: "Prometheus", 9091: "Transmission", 9093: "Alertmanager",
+    9100: "Imprimante (RAW)", 9160: "Cassandra-Thrift", 9418: "Git",
+    9987: "TeamSpeak3", 10000: "Webmin/NDMP", 10050: "Zabbix-Agent",
+    10051: "Zabbix-Server", 10250: "Kubelet", 11112: "DICOM (alt)",
+    16509: "libvirt", 17500: "Dropbox-LAN", 19132: "Minecraft-Bedrock",
+    20000: "DNP3/Usermin", 25565: "Minecraft", 27015: "Source-Games",
+    28015: "RethinkDB", 32400: "Plex", 33060: "MySQL-X", 44818: "EtherNet/IP",
+    47808: "BACnet",
+    # Ports propres au projet
     2121: "FTP (serveur de test)", 5050: "Chat interne",
 }
 
@@ -84,7 +161,7 @@ def scanner_plage_sequentiel(hote, port_debut, port_fin, timeout=0.5):
     return ports_ouverts, duree
 
 
-def scanner_plage_threads(hote, port_debut, port_fin, timeout=0.5, max_workers=10000):
+def scanner_plage_threads(hote, port_debut, port_fin, timeout=0.5, max_workers=32768):
     """Scanne une plage de ports AVEC threads (ThreadPoolExecutor, bibliothèque standard).
 
     Retourne un tuple (liste_ports_ouverts, duree_en_secondes).
@@ -114,7 +191,7 @@ def scanner_plage_threads(hote, port_debut, port_fin, timeout=0.5, max_workers=1
     return ports_ouverts, duree
 
 
-def scanner_tous_les_ports(hote, timeout=0.5, max_workers=10000):
+def scanner_tous_les_ports(hote, timeout=0.5, max_workers=32768):
     """Scanne la totalité des ports (1 à 65535) en parallèle via les threads."""
     logger.info(f"SCAN COMPLET DÉMARRÉ : {hote} (1-65535)")
     return scanner_plage_threads(hote, 1, 65535, timeout, max_workers)
@@ -175,7 +252,7 @@ def scanner_un_port_udp(hote, port, timeout=1.0):
         return "erreur"
 
 
-def scanner_plage_udp_threads(hote, port_debut, port_fin, timeout=1.0, max_workers=10000):
+def scanner_plage_udp_threads(hote, port_debut, port_fin, timeout=1.0, max_workers=32768):
     """Scanne une plage de ports UDP AVEC threads.
 
     Retourne (liste de tuples (port, statut) hors 'fermé'/'erreur', duree).

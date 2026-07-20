@@ -421,19 +421,14 @@ def menu_chat(user_connecte):
     serveur = os.path.join(_APP_DIR, "chat_serveur.py")
     client = os.path.join(_APP_DIR, "chat_client.py")
 
-    # IP du serveur de chat, modifiable ; 127.0.0.1 (machine locale) par défaut
-    hote = "127.0.0.1"
-
     while True:
         print("\n" + "=" * 60)
         print(" CHAT INTERNE (T3)")
         print("=" * 60)
-        print(f"\n IP du serveur de chat : {hote}")
         print("\nLe chat nécessite UN serveur et de 1 à 4 clients, chacun dans")
         print("son propre terminal.")
         print("\n1. Lancer le serveur (nouvelle fenêtre)")
         print("2. Lancer un client (nouvelle fenêtre)")
-        print("3. Changer l'IP du serveur de chat")
         print("0. Retour au menu principal")
 
         choix = input("\nVotre choix : ").strip()
@@ -441,20 +436,18 @@ def menu_chat(user_connecte):
         match choix:
 
             case "1":
-                _lancer_fenetre([sys.executable, serveur], hote)
+                # Le serveur écoute sur toutes les interfaces (0.0.0.0) afin
+                # d'accepter aussi bien les clients locaux (127.0.0.1) que distants.
+                _lancer_fenetre([sys.executable, serveur], "0.0.0.0")
 
             case "2":
                 pseudo = input("Pseudo du client : ").strip()
+                # IP du serveur à rejoindre : 127.0.0.1 (machine locale) par défaut
+                ip_serveur = input("IP du serveur à rejoindre [127.0.0.1] : ").strip() or "127.0.0.1"
                 commande = [sys.executable, client]
                 if pseudo:
                     commande.append(pseudo)
-                _lancer_fenetre(commande, hote)
-
-            case "3":
-                # Saisie vide : on conserve l'IP actuelle
-                saisie = input(f"Nouvelle IP du serveur [{hote}] : ").strip()
-                hote = saisie if saisie else hote
-                print(f"IP du serveur de chat : {hote}")
+                _lancer_fenetre(commande, ip_serveur)
 
             case "0":
                 break
