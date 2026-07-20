@@ -154,7 +154,7 @@ def scanner_plage_sequentiel(reseau_cidr):
     return vivants, duree
 
 
-def scanner_plage_threads(reseau_cidr, max_workers=100):
+def scanner_plage_threads(reseau_cidr, max_workers=10000):
     """Scanne une plage d'adresses AVEC threads. Retourne (liste_resultats_vivants, duree).
     Lève ReseauInvalideError si la notation CIDR est invalide."""
     debut = time.perf_counter()

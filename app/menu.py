@@ -279,13 +279,12 @@ def menu_scan_ports():
 
     while True:
         print("\n--- SCAN DE PORTS ---")
-        print("1. Scanner un port unique (TCP)")
-        print("2. Scanner une plage de ports (TCP)")
-        print("3. Scanner tous les ports 1-65535 (TCP)")
-        print("4. Scanner un port unique (UDP)")
-        print("5. Scanner une plage de ports (UDP)")
-        print("6. Comparer les performances (séquentiel vs threads)")
+        print("1. Scanner un port unique")
+        print("2. Scanner une plage de ports")
+        print("3. Scanner tous les ports (1-65535)")
+        print("4. Comparer les performances (séquentiel vs threads)")
         print("0. Retour")
+        print("\n(le protocole TCP / UDP / les deux est demandé après le choix)")
 
         choix = input("\nVotre choix : ").strip()
 
@@ -301,12 +300,6 @@ def menu_scan_ports():
                 scan_ports.action_scan_tous()
 
             case "4":
-                scan_ports.action_scan_port_udp()
-
-            case "5":
-                scan_ports.action_scan_plage_udp()
-
-            case "6":
                 scan_ports.action_comparer_performances()
 
             case "0":
@@ -387,24 +380,34 @@ def menu_reseau(user_connecte):
                 print("Choix invalide.")
 
 
-def _lancer_fenetre(commande):
+def _lancer_fenetre(commande, hote=None):
     """Ouvre une commande dans un nouveau terminal (best-effort selon l'OS).
+
+       Si `hote` est fourni, il est transmis au processus lancé via la variable
+       d'environnement CHAT_HOST (lue par chat_serveur.py et chat_client.py).
        En cas d'échec, affiche la commande à lancer manuellement."""
+
+    # On repart de l'environnement courant et on y injecte l'IP du serveur de chat
+    env = os.environ.copy()
+    if hote:
+        env["CHAT_HOST"] = hote
 
     try:
         if sys.platform.startswith("win"):
             # CREATE_NEW_CONSOLE ouvre une fenêtre de console séparée sous Windows
-            subprocess.Popen(commande, creationflags=subprocess.CREATE_NEW_CONSOLE)
+            subprocess.Popen(commande, creationflags=subprocess.CREATE_NEW_CONSOLE, env=env)
         elif sys.platform == "darwin":
             # macOS : ouverture via l'application Terminal (best-effort)
-            subprocess.Popen(["open", "-a", "Terminal"] + commande)
+            subprocess.Popen(["open", "-a", "Terminal"] + commande, env=env)
         else:
             # Linux : tentative avec un émulateur de terminal courant
-            subprocess.Popen(["x-terminal-emulator", "-e"] + commande)
+            subprocess.Popen(["x-terminal-emulator", "-e"] + commande, env=env)
         print("Fenêtre lancée. Vérifiez le nouveau terminal.")
     except Exception as e:
         print(f"\nLancement automatique impossible ({e}).")
         print("Lancez cette commande manuellement dans un terminal :")
+        if hote:
+            print(f"  (définir au préalable CHAT_HOST={hote})")
         print("  " + " ".join(f'"{c}"' if " " in c else c for c in commande))
 
 
@@ -418,16 +421,19 @@ def menu_chat(user_connecte):
     serveur = os.path.join(_APP_DIR, "chat_serveur.py")
     client = os.path.join(_APP_DIR, "chat_client.py")
 
+    # IP du serveur de chat, modifiable ; 127.0.0.1 (machine locale) par défaut
+    hote = "127.0.0.1"
+
     while True:
         print("\n" + "=" * 60)
         print(" CHAT INTERNE (T3)")
         print("=" * 60)
+        print(f"\n IP du serveur de chat : {hote}")
         print("\nLe chat nécessite UN serveur et de 1 à 4 clients, chacun dans")
-        print("son propre terminal. Commandes à lancer :")
-        print(f'\n  Serveur : python "{serveur}"')
-        print(f'  Client  : python "{client}" <pseudo>')
+        print("son propre terminal.")
         print("\n1. Lancer le serveur (nouvelle fenêtre)")
         print("2. Lancer un client (nouvelle fenêtre)")
+        print("3. Changer l'IP du serveur de chat")
         print("0. Retour au menu principal")
 
         choix = input("\nVotre choix : ").strip()
@@ -435,14 +441,20 @@ def menu_chat(user_connecte):
         match choix:
 
             case "1":
-                _lancer_fenetre([sys.executable, serveur])
+                _lancer_fenetre([sys.executable, serveur], hote)
 
             case "2":
                 pseudo = input("Pseudo du client : ").strip()
                 commande = [sys.executable, client]
                 if pseudo:
                     commande.append(pseudo)
-                _lancer_fenetre(commande)
+                _lancer_fenetre(commande, hote)
+
+            case "3":
+                # Saisie vide : on conserve l'IP actuelle
+                saisie = input(f"Nouvelle IP du serveur [{hote}] : ").strip()
+                hote = saisie if saisie else hote
+                print(f"IP du serveur de chat : {hote}")
 
             case "0":
                 break

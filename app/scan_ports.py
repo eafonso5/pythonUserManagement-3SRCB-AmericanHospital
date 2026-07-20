@@ -84,7 +84,7 @@ def scanner_plage_sequentiel(hote, port_debut, port_fin, timeout=0.5):
     return ports_ouverts, duree
 
 
-def scanner_plage_threads(hote, port_debut, port_fin, timeout=0.5, max_workers=100):
+def scanner_plage_threads(hote, port_debut, port_fin, timeout=0.5, max_workers=10000):
     """Scanne une plage de ports AVEC threads (ThreadPoolExecutor, bibliothèque standard).
 
     Retourne un tuple (liste_ports_ouverts, duree_en_secondes).
@@ -114,7 +114,7 @@ def scanner_plage_threads(hote, port_debut, port_fin, timeout=0.5, max_workers=1
     return ports_ouverts, duree
 
 
-def scanner_tous_les_ports(hote, timeout=0.5, max_workers=500):
+def scanner_tous_les_ports(hote, timeout=0.5, max_workers=10000):
     """Scanne la totalité des ports (1 à 65535) en parallèle via les threads."""
     logger.info(f"SCAN COMPLET DÉMARRÉ : {hote} (1-65535)")
     return scanner_plage_threads(hote, 1, 65535, timeout, max_workers)
@@ -175,7 +175,7 @@ def scanner_un_port_udp(hote, port, timeout=1.0):
         return "erreur"
 
 
-def scanner_plage_udp_threads(hote, port_debut, port_fin, timeout=1.0, max_workers=100):
+def scanner_plage_udp_threads(hote, port_debut, port_fin, timeout=1.0, max_workers=10000):
     """Scanne une plage de ports UDP AVEC threads.
 
     Retourne (liste de tuples (port, statut) hors 'fermé'/'erreur', duree).
@@ -245,65 +245,114 @@ def _afficher_ports_ouverts(ports_ouverts):
     print("-" * 40)
 
 
+def _demander_protocole():
+    """Demande le(s) protocole(s) à scanner.
+
+    Retourne une liste : ['tcp'], ['udp'] ou ['tcp', 'udp']."""
+    print("\nProtocole à scanner :")
+    print("  1. TCP")
+    print("  2. UDP")
+    print("  3. Les deux (TCP + UDP)")
+    choix = input("Votre choix [1] : ").strip()
+    if choix == "2":
+        return ["udp"]
+    if choix == "3":
+        return ["tcp", "udp"]
+    # Vide, '1' ou saisie invalide : TCP par défaut
+    return ["tcp"]
+
+
+def _afficher_ports_udp(resultats):
+    """Affiche la liste des ports UDP non fermés (ouvert / ouvert|filtré)."""
+    if not resultats:
+        print("Aucun port UDP ouvert/filtré détecté (tous fermés).")
+        return
+    print(f"{len(resultats)} port(s) UDP non fermé(s) :")
+    print("-" * 50)
+    print(f"{'Port':<8} | {'Statut':<15} | Service")
+    print("-" * 50)
+    for port, statut in resultats:
+        print(f"{port:<8} | {statut:<15} | {nom_service(port)}")
+    print("-" * 50)
+
+
 def action_scan_port_unique():
-    """Scan d'un seul port choisi par l'utilisateur."""
+    """Scan d'un seul port : choix du port puis du/des protocole(s)."""
     print("\n--- SCAN D'UN PORT UNIQUE ---")
     _avertissement()
     hote = _demander_hote()
     port = _demander_entier("Numéro du port", 80)
+    protocoles = _demander_protocole()
 
-    debut = time.perf_counter()
-    ouvert = scanner_un_port(hote, port)
-    duree = time.perf_counter() - debut
-    if ouvert:
-        print(f"\n✓ Le port {port} ({nom_service(port)}) est OUVERT sur {hote}.")
-    else:
-        print(f"\n✗ Le port {port} est fermé ou filtré sur {hote}.")
-    print(f"\nTemps d'exécution : {duree:.3f} seconde(s).")
+    if "tcp" in protocoles:
+        debut = time.perf_counter()
+        ouvert = scanner_un_port(hote, port)
+        duree = time.perf_counter() - debut
+        etat = "OUVERT" if ouvert else "fermé ou filtré"
+        print(f"\n[TCP] Port {port} ({nom_service(port)}) sur {hote} : {etat}  ({duree:.3f}s)")
+
+    if "udp" in protocoles:
+        print("\nNote UDP : l'absence de réponse est ambiguë (ouvert ou filtré).")
+        debut = time.perf_counter()
+        statut = scanner_un_port_udp(hote, port)
+        duree = time.perf_counter() - debut
+        print(f"[UDP] Port {port} ({nom_service(port)}) sur {hote} : {statut.upper()}  ({duree:.3f}s)")
 
 
 def action_scan_plage():
-    """Scan d'une plage de ports (avec threads)."""
+    """Scan d'une plage de ports (threads) : bornes puis protocole(s)."""
     print("\n--- SCAN D'UNE PLAGE DE PORTS ---")
     _avertissement()
     hote = _demander_hote()
     port_debut = _demander_entier("Port de début", 1)
     port_fin = _demander_entier("Port de fin", 1024)
+    protocoles = _demander_protocole()
 
-    print(f"\nScan de {hote} sur les ports {port_debut} à {port_fin} en cours...")
     try:
-        ports_ouverts, duree = scanner_plage_threads(hote, port_debut, port_fin)
+        if "tcp" in protocoles:
+            print(f"\n[TCP] Scan de {hote} [{port_debut}-{port_fin}] en cours...")
+            ports_ouverts, duree = scanner_plage_threads(hote, port_debut, port_fin)
+            _afficher_ports_ouverts(ports_ouverts)
+            print(f"Temps [TCP] : {duree:.3f} seconde(s).")
+
+        if "udp" in protocoles:
+            print(f"\n[UDP] Scan de {hote} [{port_debut}-{port_fin}] en cours...")
+            print("(UDP : seuls les ports clairement fermés sont écartés)")
+            resultats, duree = scanner_plage_udp_threads(hote, port_debut, port_fin)
+            _afficher_ports_udp(resultats)
+            print(f"Temps [UDP] : {duree:.3f} seconde(s).")
     except PlagePortsInvalideError as e:
         print(f"\nErreur : {e}")
-        return
     except KeyboardInterrupt:
         print("\nScan interrompu par l'utilisateur.")
-        return
-
-    _afficher_ports_ouverts(ports_ouverts)
-    print(f"\nTemps d'exécution : {duree:.3f} seconde(s).")
 
 
 def action_scan_tous():
-    """Scan de la totalité des ports (1-65535)."""
+    """Scan de la totalité des ports (1-65535) : protocole(s) au choix."""
     print("\n--- SCAN DE TOUS LES PORTS (1-65535) ---")
     _avertissement()
     hote = _demander_hote()
+    protocoles = _demander_protocole()
 
     confirm = input(f"\nScanner les 65535 ports de {hote} ? Cela peut être long (oui/non) : ").strip().lower()
     if confirm != "oui":
         print("Scan annulé.")
         return
 
-    print(f"\nScan complet de {hote} en cours...")
     try:
-        ports_ouverts, duree = scanner_tous_les_ports(hote)
+        if "tcp" in protocoles:
+            print(f"\n[TCP] Scan complet de {hote} en cours...")
+            ports_ouverts, duree = scanner_tous_les_ports(hote)
+            _afficher_ports_ouverts(ports_ouverts)
+            print(f"Temps [TCP] : {duree:.3f} seconde(s).")
+
+        if "udp" in protocoles:
+            print(f"\n[UDP] Scan complet de {hote} en cours...")
+            resultats, duree = scanner_plage_udp_threads(hote, 1, 65535)
+            _afficher_ports_udp(resultats)
+            print(f"Temps [UDP] : {duree:.3f} seconde(s).")
     except KeyboardInterrupt:
         print("\nScan interrompu par l'utilisateur.")
-        return
-
-    _afficher_ports_ouverts(ports_ouverts)
-    print(f"\nTemps d'exécution : {duree:.3f} seconde(s).")
 
 
 def action_comparer_performances():
@@ -333,52 +382,3 @@ def action_comparer_performances():
     print(f"Séquentiel (sans thread) : {resultat['duree_sequentiel']:.3f} s")
     print(f"Parallèle  (avec threads) : {resultat['duree_threads']:.3f} s")
     print(f"Gain de performance       : x{resultat['gain']:.1f} plus rapide")
-
-
-def action_scan_port_udp():
-    """Scan d'un seul port UDP choisi par l'utilisateur."""
-    print("\n--- SCAN D'UN PORT UNIQUE (UDP) ---")
-    _avertissement()
-    print("Note : en UDP, l'absence de réponse est ambiguë (ouvert ou filtré).")
-    hote = _demander_hote()
-    port = _demander_entier("Numéro du port", 53)
-
-    debut = time.perf_counter()
-    statut = scanner_un_port_udp(hote, port)
-    duree = time.perf_counter() - debut
-
-    print(f"\nPort UDP {port} ({nom_service(port)}) sur {hote} : {statut.upper()}")
-    print(f"\nTemps d'exécution : {duree:.3f} seconde(s).")
-
-
-def action_scan_plage_udp():
-    """Scan d'une plage de ports UDP (avec threads)."""
-    print("\n--- SCAN D'UNE PLAGE DE PORTS (UDP) ---")
-    _avertissement()
-    print("Note : en UDP, seuls les ports clairement fermés sont écartés ;")
-    print("les autres sont 'ouvert' ou 'ouvert|filtré' (indéterminé).")
-    hote = _demander_hote()
-    port_debut = _demander_entier("Port de début", 1)
-    port_fin = _demander_entier("Port de fin", 1024)
-
-    print(f"\nScan UDP de {hote} sur les ports {port_debut} à {port_fin} en cours...")
-    try:
-        resultats, duree = scanner_plage_udp_threads(hote, port_debut, port_fin)
-    except PlagePortsInvalideError as e:
-        print(f"\nErreur : {e}")
-        return
-    except KeyboardInterrupt:
-        print("\nScan interrompu par l'utilisateur.")
-        return
-
-    if not resultats:
-        print("\nAucun port UDP ouvert/filtré détecté (tous fermés).")
-    else:
-        print(f"\n{len(resultats)} port(s) UDP non fermé(s) :")
-        print("-" * 50)
-        print(f"{'Port':<8} | {'Statut':<15} | Service")
-        print("-" * 50)
-        for port, statut in resultats:
-            print(f"{port:<8} | {statut:<15} | {nom_service(port)}")
-        print("-" * 50)
-    print(f"\nTemps d'exécution : {duree:.3f} seconde(s).")

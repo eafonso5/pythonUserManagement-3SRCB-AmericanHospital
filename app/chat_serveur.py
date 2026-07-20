@@ -15,6 +15,29 @@ MAX_CLIENTS = 4
 # Encodage utilisé pour tous les échanges réseau
 ENCODAGE = "utf-8"
 
+# Couleurs ANSI pour la console du serveur (arrivées en vert, départs en rouge)
+_VERT = "\033[92m"
+_ROUGE = "\033[91m"
+_RESET = "\033[0m"
+
+
+def _activer_ansi_windows():
+    """Active l'interprétation des séquences ANSI dans la console Windows (mode VT).
+
+    Sans effet (et sans erreur) sur Linux/macOS où l'ANSI est déjà géré."""
+    if os.name != "nt":
+        return
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+        mode = ctypes.c_uint32()
+        kernel32.GetConsoleMode(handle, ctypes.byref(mode))
+        # 0x0004 = ENABLE_VIRTUAL_TERMINAL_PROCESSING
+        kernel32.SetConsoleMode(handle, mode.value | 0x0004)
+    except Exception:
+        pass
+
 
 class ServeurChat:
     """Serveur de chat interne : accepte plusieurs clients et diffuse les messages
@@ -38,6 +61,8 @@ class ServeurChat:
 
     def demarrer(self):
         """Lance le serveur et attend les connexions entrantes."""
+        # Couleurs ANSI (arrivées en vert, départs en rouge) sous Windows
+        _activer_ansi_windows()
         try:
             self.socket_serveur.bind((self.hote, self.port))
             self.socket_serveur.listen()
@@ -134,6 +159,9 @@ class ServeurChat:
                 )
 
             pseudo = pseudo_recu
+            # Affichage sur la console du serveur pour suivre les connexions en direct
+            print(f"{_VERT}[+] {pseudo} connecté depuis {adresse[0]}:{adresse[1]} "
+                  f"({len(self.clients)}/{MAX_CLIENTS} client(s)){_RESET}")
             logging.info(f"CHAT SERVEUR : '{pseudo}' connecté depuis {adresse}")
             self.diffuser(f"*** {pseudo} a rejoint la discussion ***", expediteur=None)
             self.envoyer_liste_membres()
@@ -204,6 +232,7 @@ class ServeurChat:
             pass
 
         if pseudo:
+            print(f"{_ROUGE}[-] {pseudo} déconnecté ({len(self.clients)}/{MAX_CLIENTS} client(s)){_RESET}")
             logging.info(f"CHAT SERVEUR : '{pseudo}' déconnecté.")
             self.diffuser(f"*** {pseudo} a quitté la discussion ***", expediteur=None)
 
