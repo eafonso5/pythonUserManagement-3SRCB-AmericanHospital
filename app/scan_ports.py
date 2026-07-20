@@ -1,6 +1,7 @@
 import socket
 import time
 import logging
+import ipaddress
 from concurrent.futures import ThreadPoolExecutor
 
 from exceptions_reseau import PlagePortsInvalideError
@@ -349,6 +350,30 @@ def _demander_hote():
     return hote if hote else HOTE_DEFAUT
 
 
+def _est_hote_local(hote):
+    """Indique si la cible est locale (loopback / localhost)."""
+    h = hote.strip().lower()
+    if h in ("", "localhost"):
+        return True
+    try:
+        return ipaddress.ip_address(h).is_loopback
+    except ValueError:
+        return False
+
+
+def _skip_udp_local(hote):
+    """Affiche un avertissement et renvoie True si le scan UDP doit être ignoré.
+
+    Sur un hôte local (loopback), les ports fermés ne renvoient pas d'ICMP
+    'port unreachable' : tout ressortirait en 'ouvert|filtré', sans intérêt."""
+    if _est_hote_local(hote):
+        print("\n[UDP] Ignoré sur un hôte local (loopback) : les ports fermés n'y")
+        print("      renvoient pas d'ICMP, donc tout ressortirait en 'ouvert|filtré'.")
+        print("      Utilisez une cible distante pour un scan UDP exploitable.")
+        return True
+    return False
+
+
 def _demander_entier(message, defaut):
     """Demande un entier avec une valeur par défaut si la saisie est vide/invalide."""
     valeur = input(f"{message} [{defaut}] : ").strip()
@@ -421,7 +446,7 @@ def action_scan_port_unique():
         etat = "OUVERT" if ouvert else "fermé ou filtré"
         print(f"\n[TCP] Port {port} ({nom_service(port)}) sur {hote} : {etat}  ({duree:.3f}s)")
 
-    if "udp" in protocoles:
+    if "udp" in protocoles and not _skip_udp_local(hote):
         print("\nNote UDP : l'absence de réponse est ambiguë (ouvert ou filtré).")
         debut = time.perf_counter()
         statut = scanner_un_port_udp(hote, port)
@@ -445,7 +470,7 @@ def action_scan_plage():
             _afficher_ports_ouverts(ports_ouverts)
             print(f"Temps [TCP] : {duree:.3f} seconde(s).")
 
-        if "udp" in protocoles:
+        if "udp" in protocoles and not _skip_udp_local(hote):
             print(f"\n[UDP] Scan de {hote} [{port_debut}-{port_fin}] en cours...")
             print("(UDP : seuls les ports clairement fermés sont écartés)")
             resultats, duree = scanner_plage_udp_threads(hote, port_debut, port_fin, verbose=True)
@@ -476,7 +501,7 @@ def action_scan_tous():
             _afficher_ports_ouverts(ports_ouverts)
             print(f"Temps [TCP] : {duree:.3f} seconde(s).")
 
-        if "udp" in protocoles:
+        if "udp" in protocoles and not _skip_udp_local(hote):
             print(f"\n[UDP] Scan complet de {hote} en cours...")
             resultats, duree = scanner_plage_udp_threads(hote, 1, 65535, verbose=True)
             _afficher_ports_udp(resultats)
