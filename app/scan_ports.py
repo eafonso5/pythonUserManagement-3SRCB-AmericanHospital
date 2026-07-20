@@ -102,6 +102,25 @@ def nom_service(port):
     return SERVICES_CONNUS.get(port, "inconnu")
 
 
+def _log_dimension_pool(proto, n_taches, max_workers, workers, verbose):
+    """(verbose) Affiche le dimensionnement du pool de threads avant un scan."""
+    if not verbose:
+        return
+    print(f"[verbose] {n_taches} tâche(s) {proto}, max_workers demandé={max_workers} "
+          f"-> {workers} thread(s) effectif(s)")
+    if workers > 2000:
+        print(f"[verbose] ATTENTION : {workers} threads simultanés demandés, "
+              f"risque de saturation (échec possible de création de threads).")
+
+
+def _log_echec_pool(prefixe, workers, exc, verbose):
+    """(verbose + journal) Signale un échec de création/exécution du pool de threads."""
+    msg = f"échec du pool de threads ({workers} workers) : {type(exc).__name__}: {exc}"
+    if verbose:
+        print(f"[verbose] ÉCHEC -> {msg}")
+    logger.error(f"{prefixe} : {msg}")
+
+
 def scanner_un_port(hote, port, timeout=0.5):
     """Teste un port TCP unique. Retourne True si le port est ouvert, False sinon.
 
@@ -161,29 +180,46 @@ def scanner_plage_sequentiel(hote, port_debut, port_fin, timeout=0.5):
     return ports_ouverts, duree
 
 
-def scanner_plage_threads(hote, port_debut, port_fin, timeout=0.5, max_workers=32768):
+def scanner_plage_threads(hote, port_debut, port_fin, timeout=0.5, max_workers=32768, verbose=False):
     """Scanne une plage de ports AVEC threads (ThreadPoolExecutor, bibliothèque standard).
 
     Retourne un tuple (liste_ports_ouverts, duree_en_secondes).
-    Lève PlagePortsInvalideError si la plage est invalide."""
+    Lève PlagePortsInvalideError si la plage est invalide.
+
+    verbose=True affiche le dimensionnement du pool, une progression régulière et
+    signale explicitement un échec de création de threads (max_workers trop élevé)."""
     _valider_plage(port_debut, port_fin)
     debut = time.perf_counter()
-    ports = range(port_debut, port_fin + 1)
+    ports = list(range(port_debut, port_fin + 1))
+
+    # Inutile d'allouer plus de threads que de ports à tester
+    workers = min(max_workers, len(ports)) or 1
+    _log_dimension_pool("TCP", len(ports), max_workers, workers, verbose)
+
     ports_ouverts = []
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            if verbose:
+                print(f"[verbose] pool créé ({workers} workers), scan en cours...")
+            resultats = {port: executor.submit(scanner_un_port, hote, port, timeout)
+                         for port in ports}
 
-    # Chaque port est testé dans un thread du pool ; on borne le nombre de threads
-    # pour rester raisonnable même sur une très grande plage.
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # On associe chaque futur résultat à son numéro de port
-        resultats = {port: executor.submit(scanner_un_port, hote, port, timeout)
-                     for port in ports}
-
-        for port, futur in resultats.items():
-            if futur.result():
-                ports_ouverts.append(port)
+            traites = 0
+            for port, futur in resultats.items():
+                traites += 1
+                if futur.result():
+                    ports_ouverts.append(port)
+                if verbose and traites % 5000 == 0:
+                    print(f"[verbose] {traites}/{len(ports)} ports testés, "
+                          f"{len(ports_ouverts)} ouvert(s)")
+    except (RuntimeError, MemoryError, OSError) as e:
+        _log_echec_pool("SCAN PORTS", workers, e, verbose)
+        raise
 
     ports_ouverts.sort()
     duree = time.perf_counter() - debut
+    if verbose:
+        print(f"[verbose] terminé en {duree:.3f}s, {len(ports_ouverts)} ouvert(s)")
     logger.info(
         f"SCAN PORTS THREADS : {hote} [{port_debut}-{port_fin}] -> "
         f"{len(ports_ouverts)} ouvert(s) {ports_ouverts} en {duree:.3f}s"
@@ -191,10 +227,10 @@ def scanner_plage_threads(hote, port_debut, port_fin, timeout=0.5, max_workers=3
     return ports_ouverts, duree
 
 
-def scanner_tous_les_ports(hote, timeout=0.5, max_workers=32768):
+def scanner_tous_les_ports(hote, timeout=0.5, max_workers=32768, verbose=False):
     """Scanne la totalité des ports (1 à 65535) en parallèle via les threads."""
     logger.info(f"SCAN COMPLET DÉMARRÉ : {hote} (1-65535)")
-    return scanner_plage_threads(hote, 1, 65535, timeout, max_workers)
+    return scanner_plage_threads(hote, 1, 65535, timeout, max_workers, verbose)
 
 
 def comparer_performances(hote, port_debut, port_fin, timeout=0.5):
@@ -252,27 +288,44 @@ def scanner_un_port_udp(hote, port, timeout=1.0):
         return "erreur"
 
 
-def scanner_plage_udp_threads(hote, port_debut, port_fin, timeout=1.0, max_workers=32768):
+def scanner_plage_udp_threads(hote, port_debut, port_fin, timeout=1.0, max_workers=32768, verbose=False):
     """Scanne une plage de ports UDP AVEC threads.
 
     Retourne (liste de tuples (port, statut) hors 'fermé'/'erreur', duree).
-    Lève PlagePortsInvalideError si la plage est invalide."""
+    Lève PlagePortsInvalideError si la plage est invalide.
+    verbose=True : dimensionnement du pool, progression et échec de threads détaillés."""
     _valider_plage(port_debut, port_fin)
     debut = time.perf_counter()
-    ports = range(port_debut, port_fin + 1)
-    resultats = []
+    ports = list(range(port_debut, port_fin + 1))
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futurs = {port: executor.submit(scanner_un_port_udp, hote, port, timeout)
-                  for port in ports}
-        for port, futur in futurs.items():
-            statut = futur.result()
-            # On ignore les ports clairement fermés et les erreurs techniques
-            if statut not in ("fermé", "erreur"):
-                resultats.append((port, statut))
+    workers = min(max_workers, len(ports)) or 1
+    _log_dimension_pool("UDP", len(ports), max_workers, workers, verbose)
+
+    resultats = []
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            if verbose:
+                print(f"[verbose] pool créé ({workers} workers), scan UDP en cours...")
+            futurs = {port: executor.submit(scanner_un_port_udp, hote, port, timeout)
+                      for port in ports}
+            traites = 0
+            for port, futur in futurs.items():
+                traites += 1
+                statut = futur.result()
+                # On ignore les ports clairement fermés et les erreurs techniques
+                if statut not in ("fermé", "erreur"):
+                    resultats.append((port, statut))
+                if verbose and traites % 5000 == 0:
+                    print(f"[verbose] {traites}/{len(ports)} ports testés, "
+                          f"{len(resultats)} non fermé(s)")
+    except (RuntimeError, MemoryError, OSError) as e:
+        _log_echec_pool("SCAN UDP", workers, e, verbose)
+        raise
 
     resultats.sort()
     duree = time.perf_counter() - debut
+    if verbose:
+        print(f"[verbose] terminé en {duree:.3f}s, {len(resultats)} non fermé(s)")
     logger.info(
         f"SCAN UDP THREADS : {hote} [{port_debut}-{port_fin}] -> "
         f"{len(resultats)} port(s) non fermé(s) en {duree:.3f}s"
@@ -388,14 +441,14 @@ def action_scan_plage():
     try:
         if "tcp" in protocoles:
             print(f"\n[TCP] Scan de {hote} [{port_debut}-{port_fin}] en cours...")
-            ports_ouverts, duree = scanner_plage_threads(hote, port_debut, port_fin)
+            ports_ouverts, duree = scanner_plage_threads(hote, port_debut, port_fin, verbose=True)
             _afficher_ports_ouverts(ports_ouverts)
             print(f"Temps [TCP] : {duree:.3f} seconde(s).")
 
         if "udp" in protocoles:
             print(f"\n[UDP] Scan de {hote} [{port_debut}-{port_fin}] en cours...")
             print("(UDP : seuls les ports clairement fermés sont écartés)")
-            resultats, duree = scanner_plage_udp_threads(hote, port_debut, port_fin)
+            resultats, duree = scanner_plage_udp_threads(hote, port_debut, port_fin, verbose=True)
             _afficher_ports_udp(resultats)
             print(f"Temps [UDP] : {duree:.3f} seconde(s).")
     except PlagePortsInvalideError as e:
@@ -419,13 +472,13 @@ def action_scan_tous():
     try:
         if "tcp" in protocoles:
             print(f"\n[TCP] Scan complet de {hote} en cours...")
-            ports_ouverts, duree = scanner_tous_les_ports(hote)
+            ports_ouverts, duree = scanner_tous_les_ports(hote, verbose=True)
             _afficher_ports_ouverts(ports_ouverts)
             print(f"Temps [TCP] : {duree:.3f} seconde(s).")
 
         if "udp" in protocoles:
             print(f"\n[UDP] Scan complet de {hote} en cours...")
-            resultats, duree = scanner_plage_udp_threads(hote, 1, 65535)
+            resultats, duree = scanner_plage_udp_threads(hote, 1, 65535, verbose=True)
             _afficher_ports_udp(resultats)
             print(f"Temps [UDP] : {duree:.3f} seconde(s).")
     except KeyboardInterrupt:

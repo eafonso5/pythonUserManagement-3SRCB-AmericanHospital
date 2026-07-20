@@ -4,7 +4,7 @@ import platform
 import ipaddress
 import time
 import logging
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from exceptions_reseau import ReseauInvalideError
 
@@ -13,6 +13,25 @@ logger = logging.getLogger(__name__)
 
 # Système d'exploitation courant (détecté une seule fois au chargement du module)
 _SYSTEME = platform.system().lower()
+
+
+def _log_dimension_pool(n_taches, max_workers, workers, verbose):
+    """(verbose) Affiche le dimensionnement du pool de threads avant un scan réseau."""
+    if not verbose:
+        return
+    print(f"[verbose] {n_taches} hôte(s), max_workers demandé={max_workers} "
+          f"-> {workers} thread(s) effectif(s)")
+    if workers > 2000:
+        print(f"[verbose] ATTENTION : {workers} threads = autant de processus 'ping' "
+              f"potentiellement simultanés ; risque de saturation.")
+
+
+def _log_echec_pool(workers, exc, verbose):
+    """(verbose + journal) Signale un échec de création/exécution du pool de threads."""
+    msg = f"échec du pool de threads ({workers} workers) : {type(exc).__name__}: {exc}"
+    if verbose:
+        print(f"[verbose] ÉCHEC -> {msg}")
+    logger.error(f"SCAN RÉSEAU : {msg}")
 
 
 def resoudre_dns(nom):
@@ -154,23 +173,46 @@ def scanner_plage_sequentiel(reseau_cidr):
     return vivants, duree
 
 
-def scanner_plage_threads(reseau_cidr, max_workers=32768):
+def scanner_plage_threads(reseau_cidr, max_workers=512, verbose=False):
     """Scanne une plage d'adresses AVEC threads. Retourne (liste_resultats_vivants, duree).
-    Lève ReseauInvalideError si la notation CIDR est invalide."""
+    Lève ReseauInvalideError si la notation CIDR est invalide.
+
+    verbose=True affiche le dimensionnement du pool, une progression régulière et
+    signale explicitement un échec de création de threads (max_workers trop élevé),
+    utile pour diagnostiquer une saturation sur une grande plage."""
     debut = time.perf_counter()
     hotes = _lister_hotes(reseau_cidr)
 
+    # Inutile d'allouer plus de threads que d'hôtes à pinger
+    workers = min(max_workers, len(hotes)) or 1
+    _log_dimension_pool(len(hotes), max_workers, workers, verbose)
+
     vivants = []
-    # Chaque hôte est pingé dans un thread du pool
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        resultats = executor.map(scanner_ip, hotes)
-        for resultat in resultats:
-            if resultat["vivant"]:
-                vivants.append(resultat)
+    traites = 0
+    try:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            if verbose:
+                print(f"[verbose] pool créé ({workers} workers), soumission de {len(hotes)} tâche(s)...")
+            futures = [executor.submit(scanner_ip, ip) for ip in hotes]
+            if verbose:
+                print("[verbose] tâches soumises, attente des résultats...")
+            for future in as_completed(futures):
+                traites += 1
+                resultat = future.result()
+                if resultat["vivant"]:
+                    vivants.append(resultat)
+                if verbose and traites % 500 == 0:
+                    print(f"[verbose] {traites}/{len(hotes)} traités, {len(vivants)} vivant(s)")
+    except (RuntimeError, MemoryError, OSError) as e:
+        # Typiquement "can't start new thread" quand max_workers est trop grand
+        _log_echec_pool(workers, e, verbose)
+        raise
 
     # Tri des résultats par adresse IP pour un affichage stable
     vivants.sort(key=lambda r: ipaddress.ip_address(r["ip"]))
     duree = time.perf_counter() - debut
+    if verbose:
+        print(f"[verbose] terminé en {duree:.1f}s, {len(vivants)} vivant(s)")
     logger.info(
         f"SCAN RÉSEAU THREADS : {reseau_cidr} ({len(hotes)} hôtes) -> "
         f"{len(vivants)} vivant(s) en {duree:.3f}s"
@@ -279,7 +321,7 @@ def action_scan_plage():
         # _lister_hotes valide la notation et lève ReseauInvalideError si besoin
         nb_hotes = len(_lister_hotes(cidr))
         print(f"\nScan de {cidr} ({nb_hotes} hôte(s)) en cours...")
-        vivants, duree = scanner_plage_threads(cidr)
+        vivants, duree = scanner_plage_threads(cidr, verbose=True)
     except ReseauInvalideError as e:
         print(f"\nErreur : {e}")
         return
