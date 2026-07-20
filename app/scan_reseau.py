@@ -52,16 +52,64 @@ def resoudre_dns(nom):
     return adresses
 
 
-def reverse_dns(ip):
-    """Résout une adresse IP en nom de machine (DNS inverse).
+# Requête NetBIOS « node status » (NBSTAT) pour le nom générique « * ».
+# En-tête (12 o) + nom encodé de « * » (0x20 + "CK"+30x"A" + 0x00) + type 0x21 + classe 0x01.
+_REQUETE_NBSTAT = (
+    b"\xa2\x48\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00"
+    b"\x20CKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\x00"
+    b"\x00\x21\x00\x01"
+)
 
+
+def _nom_netbios(ip, timeout=1.0):
+    """Interroge le nom NetBIOS d'une machine par une requête « node status » UDP
+    directe (port 137).
+
+    Très utile sur un LAN où les postes clients n'ont pas d'enregistrement PTR dans
+    le DNS (fréquent en Wi-Fi) : la machine répond elle-même son nom. Bien plus
+    rapide que « nbtstat -A » (qui sonde toutes les cartes réseau locales) car le
+    paquet est routé directement vers la cible. Retourne le nom, ou None."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.settimeout(timeout)
+            sock.sendto(_REQUETE_NBSTAT, (str(ip), 137))
+            data, _ = sock.recvfrom(2048)
+    except Exception:
+        # Pas de réponse : hôte non-Windows, NetBIOS désactivé ou filtré. Cas normal.
+        return None
+
+    # Réponse : en-tête (12) + nom (34) + type/classe/TTL/rdlength (10) = 56 octets,
+    # puis 1 octet indiquant le nombre de noms, puis 18 octets par nom.
+    if len(data) < 57:
+        return None
+    nb_noms = data[56]
+    offset = 57
+    for _ in range(nb_noms):
+        bloc = data[offset:offset + 18]
+        if len(bloc) < 18:
+            break
+        nom = bloc[0:15].decode("ascii", "ignore").strip()
+        suffixe = bloc[15]
+        flags = int.from_bytes(bloc[16:18], "big")
+        est_groupe = bool(flags & 0x8000)
+        # Le nom de l'ordinateur = suffixe 0x00, entrée UNIQUE (bit groupe à 0)
+        if suffixe == 0x00 and not est_groupe and nom:
+            return nom
+        offset += 18
+    return None
+
+
+def reverse_dns(ip):
+    """Résout une adresse IP en nom de machine.
+
+    Tente d'abord le DNS inverse (PTR) ; en cas d'échec, se rabat sur le nom
+    NetBIOS (efficace sur un LAN Windows sans enregistrement PTR).
     Retourne le nom trouvé, ou None si aucune correspondance."""
     try:
-        nom = socket.gethostbyaddr(ip)[0]
-        return nom
+        return socket.gethostbyaddr(ip)[0]
     except Exception:
-        # Pas d'enregistrement PTR pour cette adresse : cas normal, pas une erreur bloquante
-        return None
+        # Pas d'enregistrement PTR : cas normal sur un LAN. On tente le NetBIOS.
+        return _nom_netbios(ip)
 
 
 def _construire_commande_ping(ip):
