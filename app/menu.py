@@ -427,8 +427,8 @@ def menu_chat(user_connecte):
         print("=" * 60)
         print("\nLe chat nécessite UN serveur et de 1 à 4 clients, chacun dans")
         print("son propre terminal.")
-        print("\n1. Lancer le serveur (nouvelle fenêtre)")
-        print("2. Lancer un client (nouvelle fenêtre)")
+        print("\n1. Lancer le serveur")
+        print("2. Lancer un client")
         print("0. Retour au menu principal")
 
         choix = input("\nVotre choix : ").strip()
