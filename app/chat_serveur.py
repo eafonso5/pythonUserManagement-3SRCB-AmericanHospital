@@ -105,7 +105,7 @@ class ServeurChat:
                     except OSError:
                         pass
                     try:
-                        client.send("Serveur plein, réessayez plus tard.".encode(ENCODAGE))
+                        client.send("Serveur plein, réessayez plus tard.\n".encode(ENCODAGE))
                     except OSError:
                         pass
                     client.close()
@@ -150,7 +150,7 @@ class ServeurChat:
                 # Pseudo en doublon : on prévient le client puis on refuse la connexion
                 try:
                     client.send(
-                        f"Pseudo « {pseudo_recu} » déjà utilisé, choisissez-en un autre.".encode(ENCODAGE)
+                        f"Pseudo « {pseudo_recu} » déjà utilisé, choisissez-en un autre.\n".encode(ENCODAGE)
                     )
                 except Exception:
                     pass
@@ -209,7 +209,10 @@ class ServeurChat:
             if client is expediteur:
                 continue
             try:
-                client.send(message.encode(ENCODAGE))
+                # Délimiteur '\n' : plusieurs messages envoyés coup sur coup
+                # (ex : « a rejoint » + liste des membres) peuvent arriver dans un
+                # même recv() côté client, qui les redécoupe alors sur ce séparateur.
+                client.send((message + "\n").encode(ENCODAGE))
             except Exception:
                 # Client injoignable : il sera nettoyé par son propre thread
                 pass
