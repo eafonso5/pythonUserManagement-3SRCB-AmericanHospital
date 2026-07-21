@@ -418,6 +418,10 @@ def menu_chat(user_connecte):
     propre terminal. Ce menu affiche les commandes et propose de les lancer
     automatiquement dans de nouvelles fenêtres."""
 
+    # Interfaces graphiques (Tkinter) par défaut ; les versions console restent
+    # disponibles en repli (options 3 et 4).
+    serveur_gui = os.path.join(_APP_DIR, "chat_serveur_gui.py")
+    client_gui = os.path.join(_APP_DIR, "chat_client_gui.py")
     serveur = os.path.join(_APP_DIR, "chat_serveur.py")
     client = os.path.join(_APP_DIR, "chat_client.py")
 
@@ -426,9 +430,11 @@ def menu_chat(user_connecte):
         print(" CHAT INTERNE (T3)")
         print("=" * 60)
         print("\nLe chat nécessite UN serveur et de 1 à 4 clients, chacun dans")
-        print("son propre terminal.")
-        print("\n1. Lancer le serveur")
-        print("2. Lancer un client")
+        print("sa propre fenêtre.")
+        print("\n1. Lancer le serveur (interface graphique)")
+        print("2. Lancer un client (interface graphique)")
+        print("3. Lancer le serveur (console)")
+        print("4. Lancer un client (console)")
         print("0. Retour au menu principal")
 
         choix = input("\nVotre choix : ").strip()
@@ -438,11 +444,22 @@ def menu_chat(user_connecte):
             case "1":
                 # Le serveur écoute sur toutes les interfaces (0.0.0.0) afin
                 # d'accepter aussi bien les clients locaux (127.0.0.1) que distants.
-                _lancer_fenetre([sys.executable, serveur], "0.0.0.0")
+                _lancer_fenetre([sys.executable, serveur_gui], "0.0.0.0")
 
             case "2":
-                pseudo = input("Pseudo du client : ").strip()
+                pseudo = input("Pseudo du client (facultatif, modifiable dans la fenêtre) : ").strip()
                 # IP du serveur à rejoindre : 127.0.0.1 (machine locale) par défaut
+                ip_serveur = input("IP du serveur à rejoindre [127.0.0.1] : ").strip() or "127.0.0.1"
+                # L'interface client accepte [pseudo] [ip] en arguments et pré-remplit
+                # son formulaire de connexion ; tout reste modifiable dans la fenêtre.
+                commande = [sys.executable, client_gui, pseudo or "", ip_serveur]
+                _lancer_fenetre(commande, ip_serveur)
+
+            case "3":
+                _lancer_fenetre([sys.executable, serveur], "0.0.0.0")
+
+            case "4":
+                pseudo = input("Pseudo du client : ").strip()
                 ip_serveur = input("IP du serveur à rejoindre [127.0.0.1] : ").strip() or "127.0.0.1"
                 commande = [sys.executable, client]
                 if pseudo:

@@ -43,9 +43,17 @@ class ServeurChat:
     """Serveur de chat interne : accepte plusieurs clients et diffuse les messages
        à tout le monde (discussion de groupe). Chaque client est géré dans son propre thread."""
 
-    def __init__(self, hote=HOTE, port=PORT):
+    def __init__(self, hote=HOTE, port=PORT, notifier=None):
         self.hote = hote
         self.port = port
+
+        # Callback optionnel pour signaler les évènements à une interface (ex : GUI).
+        # Signature : notifier(evenement: str, infos: dict). None => mode console pur.
+        self.notifier = notifier
+
+        # Drapeau d'arrêt : permet à une interface d'arrêter proprement la boucle
+        # d'écoute (le socket a un timeout, la boucle relit ce drapeau ~1x/s).
+        self._arret = False
 
         # Dictionnaire {socket_client: pseudo} des clients connectés
         self.clients = {}
@@ -58,6 +66,22 @@ class ServeurChat:
 
         # Permet de relancer le serveur immédiatement après un arrêt (réutilisation du port)
         self.socket_serveur.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+    def _notifier(self, evenement, **infos):
+        """Transmet un évènement au callback d'interface s'il est défini.
+
+        Toujours protégé : une interface défaillante ne doit jamais faire tomber
+        le serveur. Sans callback (mode console), ne fait rien."""
+        if self.notifier is None:
+            return
+        try:
+            self.notifier(evenement, infos)
+        except Exception:
+            pass
+
+    def arreter(self):
+        """Demande l'arrêt de la boucle d'écoute (utilisé par l'interface graphique)."""
+        self._arret = True
 
     def demarrer(self):
         """Lance le serveur et attend les connexions entrantes."""
@@ -74,6 +98,7 @@ class ServeurChat:
         print(f"Serveur de chat démarré sur {self.hote}:{self.port}")
         print(f"En attente de connexions (max {MAX_CLIENTS} clients)... [Ctrl+C pour arrêter]")
         logging.info(f"CHAT SERVEUR : démarré sur {self.hote}:{self.port}")
+        self._notifier("demarre", hote=self.hote, port=self.port, max_clients=MAX_CLIENTS)
 
         # Timeout sur le socket d'écoute : accept() rend la main périodiquement,
         # ce qui permet à Python de traiter le Ctrl+C (KeyboardInterrupt), y compris
@@ -81,8 +106,9 @@ class ServeurChat:
         self.socket_serveur.settimeout(1.0)
 
         try:
-            while True:
+            while not self._arret:
                 # Attente d'un nouveau client, avec réveil périodique pour le Ctrl+C
+                # et pour relire le drapeau d'arrêt (arrêt demandé par l'interface).
                 try:
                     client, adresse = self.socket_serveur.accept()
                 except socket.timeout:
@@ -105,11 +131,12 @@ class ServeurChat:
                     except OSError:
                         pass
                     try:
-                        client.send("Serveur plein, réessayez plus tard.".encode(ENCODAGE))
+                        client.send("Serveur plein, réessayez plus tard.\n".encode(ENCODAGE))
                     except OSError:
                         pass
                     client.close()
                     logging.warning(f"CHAT SERVEUR : connexion refusée (serveur plein) {adresse}")
+                    self._notifier("refus", adresse=f"{adresse[0]}:{adresse[1]}")
                     continue
 
                 # Un thread dédié par client pour gérer ses messages en parallèle
@@ -124,8 +151,10 @@ class ServeurChat:
             # (au lieu de laisser remonter une trace) ; le finally ferme le socket.
             logging.error(f"CHAT SERVEUR : erreur socket, arrêt du serveur ({e})")
             print(f"\nErreur réseau du serveur, arrêt : {e}")
+            self._notifier("erreur", message=str(e))
         finally:
             self.socket_serveur.close()
+            self._notifier("arret")
 
     def gerer_client(self, client, adresse):
         """Gère un client : réception du pseudo puis boucle de réception des messages."""
@@ -150,7 +179,7 @@ class ServeurChat:
                 # Pseudo en doublon : on prévient le client puis on refuse la connexion
                 try:
                     client.send(
-                        f"Pseudo « {pseudo_recu} » déjà utilisé, choisissez-en un autre.".encode(ENCODAGE)
+                        f"Pseudo « {pseudo_recu} » déjà utilisé, choisissez-en un autre.\n".encode(ENCODAGE)
                     )
                 except Exception:
                     pass
@@ -159,10 +188,14 @@ class ServeurChat:
                 )
 
             pseudo = pseudo_recu
+            with self.verrou:
+                membres = list(self.clients.values())
             # Affichage sur la console du serveur pour suivre les connexions en direct
             print(f"{_VERT}[+] {pseudo} connecté depuis {adresse[0]}:{adresse[1]} "
-                  f"({len(self.clients)}/{MAX_CLIENTS} client(s)){_RESET}")
+                  f"({len(membres)}/{MAX_CLIENTS} client(s)){_RESET}")
             logging.info(f"CHAT SERVEUR : '{pseudo}' connecté depuis {adresse}")
+            self._notifier("connexion", pseudo=pseudo, adresse=f"{adresse[0]}:{adresse[1]}",
+                           nb=len(membres), membres=membres)
             self.diffuser(f"*** {pseudo} a rejoint la discussion ***", expediteur=None)
             self.envoyer_liste_membres()
 
@@ -185,6 +218,7 @@ class ServeurChat:
                     # et aligne ses propres messages à droite, ceux des autres à gauche.
                     self.diffuser(f"[ {pseudo} ] : {message}", expediteur=None)
                     logging.info(f"CHAT MESSAGE : {pseudo}: {message}")
+                    self._notifier("message", pseudo=pseudo, texte=message)
 
         except PseudoInvalideError as e:
             # Cas fonctionnel attendu : on journalise en avertissement, sans trace d'erreur
@@ -209,7 +243,11 @@ class ServeurChat:
             if client is expediteur:
                 continue
             try:
-                client.send(message.encode(ENCODAGE))
+                # Chaque message est délimité par un '\n' : plusieurs messages
+                # envoyés coup sur coup (ex : « a rejoint » + liste des membres)
+                # peuvent arriver dans un même recv() côté client, qui les
+                # redécoupe alors proprement sur ce séparateur.
+                client.send((message + "\n").encode(ENCODAGE))
             except Exception:
                 # Client injoignable : il sera nettoyé par son propre thread
                 pass
@@ -225,6 +263,7 @@ class ServeurChat:
         with self.verrou:
             if client in self.clients:
                 del self.clients[client]
+            membres = list(self.clients.values())
 
         try:
             client.close()
@@ -232,8 +271,9 @@ class ServeurChat:
             pass
 
         if pseudo:
-            print(f"{_ROUGE}[-] {pseudo} déconnecté ({len(self.clients)}/{MAX_CLIENTS} client(s)){_RESET}")
+            print(f"{_ROUGE}[-] {pseudo} déconnecté ({len(membres)}/{MAX_CLIENTS} client(s)){_RESET}")
             logging.info(f"CHAT SERVEUR : '{pseudo}' déconnecté.")
+            self._notifier("deconnexion", pseudo=pseudo, nb=len(membres), membres=membres)
             self.diffuser(f"*** {pseudo} a quitté la discussion ***", expediteur=None)
 
 

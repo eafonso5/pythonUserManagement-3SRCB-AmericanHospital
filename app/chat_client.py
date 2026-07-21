@@ -87,6 +87,11 @@ class ClientChat:
         # ne s'entrelace avec l'effacement de notre saisie clavier.
         self.verrou_affichage = threading.Lock()
 
+        # Tampon de réception : les messages sont délimités par '\n' côté serveur,
+        # mais un recv() peut en contenir plusieurs (ou un message tronqué). On
+        # accumule ici et on ne traite que les lignes complètes.
+        self._tampon = ""
+
     def connecter(self, pseudo):
         """Établit la connexion au serveur et envoie le pseudo."""
         try:
@@ -108,17 +113,22 @@ class ClientChat:
                     print("\nConnexion au serveur perdue.")
                     self.actif = False
                     break
-                # Affichage : pseudo en bleu ; à droite si c'est notre message,
-                # à gauche pour les messages des autres et les messages système.
-                colore, longueur, a_droite = _formater_reception(
-                    donnees.decode(ENCODAGE), self.pseudo
-                )
-                with self.verrou_affichage:
-                    if a_droite:
-                        pad = max(0, _largeur_terminal() - longueur)
-                        print(" " * pad + colore)
-                    else:
-                        print(colore)
+
+                # On accumule puis on traite chaque message complet (délimité par '\n')
+                self._tampon += donnees.decode(ENCODAGE)
+                while "\n" in self._tampon:
+                    ligne, self._tampon = self._tampon.split("\n", 1)
+                    if not ligne:
+                        continue
+                    # Affichage : pseudo en bleu ; à droite si c'est notre message,
+                    # à gauche pour les messages des autres et les messages système.
+                    colore, longueur, a_droite = _formater_reception(ligne, self.pseudo)
+                    with self.verrou_affichage:
+                        if a_droite:
+                            pad = max(0, _largeur_terminal() - longueur)
+                            print(" " * pad + colore)
+                        else:
+                            print(colore)
             except Exception:
                 self.actif = False
                 break
