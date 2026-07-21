@@ -63,12 +63,8 @@ _REQUETE_NBSTAT = (
 
 def _nom_netbios(ip, timeout=1.0):
     """Interroge le nom NetBIOS d'une machine par une requête « node status » UDP
-    directe (port 137).
+    directe (port 137)."""
 
-    Très utile sur un LAN où les postes clients n'ont pas d'enregistrement PTR dans
-    le DNS (fréquent en Wi-Fi) : la machine répond elle-même son nom. Bien plus
-    rapide que « nbtstat -A » (qui sonde toutes les cartes réseau locales) car le
-    paquet est routé directement vers la cible. Retourne le nom, ou None."""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             sock.settimeout(timeout)
@@ -108,7 +104,7 @@ def reverse_dns(ip):
     try:
         return socket.gethostbyaddr(ip)[0]
     except Exception:
-        # Pas d'enregistrement PTR : cas normal sur un LAN. On tente le NetBIOS.
+        # Pas d'enregistrement PTR. On tente le NetBIOS.
         return _nom_netbios(ip)
 
 
@@ -116,7 +112,7 @@ def _construire_commande_ping(ip):
     """Construit la commande ping adaptée à l'OS et à la version IP (IPv4/IPv6).
 
     On envoie un seul paquet avec un court délai d'attente. La détection
-    IPv4/IPv6 s'appuie sur le module ipaddress (aucune dépendance externe)."""
+    IPv4/IPv6 s'appuie sur le module ipaddress."""
     # Détermination de la version d'IP pour ajouter l'option -6 si nécessaire
     option_ipv6 = []
     try:
@@ -137,11 +133,7 @@ def _construire_commande_ping(ip):
         return ["ping", "-c", "2", "-W", "1"] + option_ipv6 + [str(ip)]
 
 
-# Marqueurs présents uniquement dans une VRAIE réponse d'écho ICMP.
 # Un écho valide indique soit une durée aller-retour (time/temps), soit le TTL.
-# Les réponses « Destination host unreachable » et « Request timed out » n'en
-# contiennent aucun. Ces marqueurs couvrent Windows et Linux/Mac, en anglais
-# comme en français (IPv4 affiche 'TTL=', l'IPv6 sous Windows affiche 'time<...').
 _MARQUEURS_ECHO = ("ttl=", "time<", "time=", "temps<", "temps=")
 
 
@@ -184,10 +176,8 @@ def scanner_ip(ip):
 
 def _lister_hotes(reseau_cidr):
     """Retourne la liste des IP à scanner à partir d'une notation CIDR.
-
     ip_network gère indifféremment l'IPv4 et l'IPv6. Pour une IP unique
-    (ex : '127.0.0.1'), on la scanne directement.
-    Lève ReseauInvalideError si la notation est incorrecte."""
+    (ex : '127.0.0.1'), on la scanne directement."""
     try:
         reseau = ipaddress.ip_network(reseau_cidr, strict=False)
     except ValueError as e:
@@ -269,9 +259,8 @@ def scanner_plage_threads(reseau_cidr, max_workers=128, verbose=False):
 
 
 def comparer_performances_reseau(reseau_cidr):
-    """Compare le temps séquentiel vs threads sur la même plage réseau.
-
-    Répond à la consigne : mesurer le temps sans et avec threads."""
+    """Compare le temps séquentiel vs threads sur la même plage réseau."""
+    
     vivants_seq, duree_seq = scanner_plage_sequentiel(reseau_cidr)
     vivants_thr, duree_thr = scanner_plage_threads(reseau_cidr)
 
